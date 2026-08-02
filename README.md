@@ -45,6 +45,30 @@ Optional: set `ANTHROPIC_API_KEY` in `backend/.env` to have insight copy
 rewritten by Claude. Everything works without it — insight detection is
 deterministic and rule-based.
 
+## Free hosting (Render + Neon + GitHub Actions)
+
+The repo ships a single-service free-tier deployment: the root `Dockerfile`
+builds the React app and serves it from Laravel, so everything fits one free
+web service.
+
+1. **Database** — create a free project at [neon.tech](https://neon.tech) and
+   copy its Postgres connection string.
+2. **App** — at [render.com](https://render.com) choose *New → Blueprint*,
+   point it at this repo (it picks up `render.yaml`), and fill in:
+   - `APP_KEY`: output of `openssl rand -base64 32 | sed 's/^/base64:/'`
+   - `DB_URL`: the Neon connection string (keep `?sslmode=require`)
+   - `ANTHROPIC_API_KEY`: optional
+3. **Hourly syncs** — the free tier has no resident scheduler, so a GitHub
+   Actions cron (`.github/workflows/scheduled-sync.yml`) pings the app
+   instead. Add two repository secrets in GitHub (*Settings → Secrets and
+   variables → Actions*): `APP_URL` (your Render URL) and `CRON_SECRET`
+   (copy the generated value from the Render environment tab).
+
+Free-tier trade-offs: the service sleeps after ~15 minutes idle (first visit
+takes ~30–60 s to wake — relevant for public landing pages), and queued jobs
+run inline (`QUEUE_CONNECTION=sync`). When you outgrow it, `docker-compose.yml`
+runs the same code with a real queue worker and scheduler on any VM.
+
 ## Docker
 
 ```bash

@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\LandingPageController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\PublicLandingPageController;
+use App\Jobs\SyncAllIntegrations;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Auth
@@ -18,6 +20,22 @@ Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])->middleware('throttle:5,1');
 Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:5,1');
+
+// External scheduler hook: lets a GitHub Actions cron (or any scheduler)
+// trigger the hourly integration sync on hosts without a resident scheduler.
+Route::post('/internal/run-sync', function (Request $request) {
+    $secret = config('app.cron_secret');
+
+    abort_unless(
+        is_string($secret) && $secret !== ''
+            && hash_equals($secret, (string) $request->header('X-Cron-Secret')),
+        403,
+    );
+
+    (new SyncAllIntegrations)->handle();
+
+    return response()->json(['message' => 'Sync dispatched.']);
+})->middleware('throttle:10,1');
 
 // Public landing pages
 Route::prefix('pages/{slug}')->middleware('throttle:60,1')->group(function () {

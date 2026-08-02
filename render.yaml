@@ -1,0 +1,34 @@
+# Render blueprint — free-tier deployment (one combined web service).
+# Pair with a free Neon Postgres database (https://neon.tech): create a
+# project there and paste its connection string into DB_URL when prompted.
+
+services:
+  - type: web
+    name: kickstarter-launch-os
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false # set to the output of: openssl rand -base64 32 | sed 's/^/base64:/'
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        sync: false # Neon connection string, e.g. postgres://user:pass@host/db?sslmode=require
+      - key: QUEUE_CONNECTION
+        value: sync # no always-on worker on the free tier; jobs run inline
+      - key: CACHE_STORE
+        value: database
+      - key: SESSION_DRIVER
+        value: database
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: CRON_SECRET
+        generateValue: true # copy into the GitHub repo secret of the same name
+      - key: ANTHROPIC_API_KEY
+        sync: false # optional — leave empty to skip AI copy polish
