@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: launch_os
       POSTGRES_USER: launch_os
@@ -15,11 +16,12 @@ services:
 
   backend:
     build: ./backend
+    restart: unless-stopped
     environment: &laravel-env
       APP_ENV: production
       APP_DEBUG: "false"
-      APP_KEY: ${APP_KEY:?run `php artisan key:generate --show` and set APP_KEY}
-      APP_URL: http://localhost:8080
+      APP_KEY: ${APP_KEY:?run `openssl rand -base64 32 | sed 's/^/base64:/'` and set APP_KEY in .env}
+      APP_URL: ${APP_URL:-http://localhost}
       DB_CONNECTION: pgsql
       DB_HOST: db
       DB_PORT: "5432"
@@ -29,6 +31,7 @@ services:
       QUEUE_CONNECTION: database
       CACHE_STORE: database
       SESSION_DRIVER: database
+      LOG_CHANNEL: stderr
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
@@ -36,6 +39,7 @@ services:
 
   queue:
     build: ./backend
+    restart: unless-stopped
     command: php artisan queue:work --tries=3
     environment: *laravel-env
     depends_on:
@@ -44,6 +48,7 @@ services:
 
   scheduler:
     build: ./backend
+    restart: unless-stopped
     command: php artisan schedule:work
     environment: *laravel-env
     depends_on:
@@ -52,8 +57,9 @@ services:
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${HTTP_PORT:-80}:80"
     depends_on:
       - backend
 

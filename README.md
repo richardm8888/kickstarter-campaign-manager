@@ -45,6 +45,49 @@ Optional: set `ANTHROPIC_API_KEY` in `backend/.env` to have insight copy
 rewritten by Claude. Everything works without it — insight detection is
 deterministic and rule-based.
 
+## Deploying to a droplet / VM (recommended)
+
+`docker-compose.yml` runs the whole platform — Postgres, API, a real queue
+worker, the scheduler (hourly syncs → fresh insights) and the built frontend
+behind nginx — on any small VM (1 GB RAM is enough to start).
+
+On a fresh Ubuntu droplet:
+
+```bash
+# 1. Docker (skip if already installed)
+curl -fsSL https://get.docker.com | sh
+
+# 2. Get the code
+git clone https://github.com/richardm8888/kickstarter-campaign-manager.git
+cd kickstarter-campaign-manager
+
+# 3. Configure
+cp .env.example .env
+nano .env        # set APP_KEY (command in the file), DB_PASSWORD, APP_URL
+
+# 4. Launch — app on http://<droplet-ip>
+docker compose up -d --build
+
+# 5. Firewall (if using ufw)
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+```
+
+Updating later: `git pull && docker compose up -d --build`.
+Logs: `docker compose logs -f backend`.
+
+**HTTPS with a domain**: point an A record at the droplet, set
+`HTTP_PORT=8080` in `.env`, then put Caddy in front for automatic
+certificates:
+
+```bash
+apt install -y caddy
+printf 'yourdomain.com {\n\treverse_proxy localhost:8080\n}\n' > /etc/caddy/Caddyfile
+systemctl reload caddy
+```
+
+Then set `APP_URL=https://yourdomain.com` in `.env` and
+`docker compose up -d` again.
+
 ## Free hosting (Render + Neon + GitHub Actions)
 
 The repo ships a single-service free-tier deployment: the root `Dockerfile`
@@ -68,16 +111,6 @@ Free-tier trade-offs: the service sleeps after ~15 minutes idle (first visit
 takes ~30–60 s to wake — relevant for public landing pages), and queued jobs
 run inline (`QUEUE_CONNECTION=sync`). When you outgrow it, `docker-compose.yml`
 runs the same code with a real queue worker and scheduler on any VM.
-
-## Docker
-
-```bash
-APP_KEY=$(cd backend && php artisan key:generate --show)
-APP_KEY=$APP_KEY docker compose up --build   # app on http://localhost:8080
-```
-
-Compose runs Postgres, the API, a queue worker, the scheduler (hourly
-integration syncs → fresh insights) and the built frontend behind nginx.
 
 ## Tests
 
