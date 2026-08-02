@@ -1,19 +1,12 @@
-services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: launch_os
-      POSTGRES_USER: launch_os
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-launch_os}
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U launch_os"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+# Base stack: API, queue worker, scheduler, frontend.
+#
+# Database options:
+#   - Managed Postgres (e.g. DigitalOcean): set DB_URL in .env and run
+#       docker compose up -d --build
+#   - Bundled Postgres container: leave DB_URL empty and run
+#       docker compose -f docker-compose.yml -f docker-compose.local-db.yml up -d --build
 
+services:
   backend:
     build: ./backend
     restart: unless-stopped
@@ -23,19 +16,19 @@ services:
       APP_KEY: ${APP_KEY:?run `openssl rand -base64 32 | sed 's/^/base64:/'` and set APP_KEY in .env}
       APP_URL: ${APP_URL:-http://localhost}
       DB_CONNECTION: pgsql
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_DATABASE: launch_os
-      DB_USERNAME: launch_os
+      # A full connection string (managed database) takes precedence over
+      # the individual settings below, which default to the bundled db.
+      DB_URL: ${DB_URL:-}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-launch_os}
+      DB_USERNAME: ${DB_USERNAME:-launch_os}
       DB_PASSWORD: ${DB_PASSWORD:-launch_os}
       QUEUE_CONNECTION: database
       CACHE_STORE: database
       SESSION_DRIVER: database
       LOG_CHANNEL: stderr
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    depends_on:
-      db:
-        condition: service_healthy
 
   queue:
     build: ./backend
@@ -43,8 +36,7 @@ services:
     command: php artisan queue:work --tries=3
     environment: *laravel-env
     depends_on:
-      db:
-        condition: service_healthy
+      - backend
 
   scheduler:
     build: ./backend
@@ -52,16 +44,14 @@ services:
     command: php artisan schedule:work
     environment: *laravel-env
     depends_on:
-      db:
-        condition: service_healthy
+      - backend
 
   frontend:
     build: ./frontend
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-80}:80"
+      # 8080 by default so the stack can coexist with another app already
+      # holding port 80 on the same host.
+      - "${HTTP_PORT:-8080}:80"
     depends_on:
       - backend
-
-volumes:
-  db-data:

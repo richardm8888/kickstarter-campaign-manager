@@ -47,11 +47,28 @@ deterministic and rule-based.
 
 ## Deploying to a droplet / VM (recommended)
 
-`docker-compose.yml` runs the whole platform — Postgres, API, a real queue
-worker, the scheduler (hourly syncs → fresh insights) and the built frontend
-behind nginx — on any small VM (1 GB RAM is enough to start).
+`docker-compose.yml` runs the platform — API, a real queue worker, the
+scheduler (hourly syncs → fresh insights) and the built frontend behind
+nginx — on any small VM (1 GB RAM is enough to start). It serves on port
+**8080** by default so it can share a droplet with an app already using
+port 80.
 
-On a fresh Ubuntu droplet:
+**Database**: use a managed Postgres if you have one (recommended — DO
+managed databases handle backups for you):
+
+1. In DigitalOcean, open your database cluster → *Settings → Trusted
+   sources* → add the droplet, so it can connect.
+2. Copy the *Connection string* from *Connection details* (it looks like
+   `postgresql://doadmin:...@host:25060/defaultdb?sslmode=require`) and set
+   it as `DB_URL` in `.env`. Tables are created in `defaultdb` on first
+   boot; create a dedicated database in the cluster first if you'd rather
+   keep them separate.
+
+No managed database? Skip `DB_URL` and add the bundled Postgres overlay to
+every compose command:
+`docker compose -f docker-compose.yml -f docker-compose.local-db.yml ...`
+
+On the droplet:
 
 ```bash
 # 1. Docker (skip if already installed)
@@ -63,29 +80,39 @@ cd kickstarter-campaign-manager
 
 # 3. Configure
 cp .env.example .env
-nano .env        # set APP_KEY (command in the file), DB_PASSWORD, APP_URL
+nano .env        # set APP_KEY (command in the file), DB_URL, APP_URL
 
-# 4. Launch — app on http://<droplet-ip>
+# 4. Launch — app on http://<droplet-ip>:8080
 docker compose up -d --build
 
 # 5. Firewall (if using ufw)
-ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+ufw allow 8080/tcp
 ```
 
 Updating later: `git pull && docker compose up -d --build`.
 Logs: `docker compose logs -f backend`.
 
-**HTTPS with a domain**: point an A record at the droplet, set
-`HTTP_PORT=8080` in `.env`, then put Caddy in front for automatic
-certificates:
+**Adding a domain later** (droplet already routes another domain through a
+host proxy): keep `HTTP_PORT=8080` and add a virtual host that proxies to
+it. nginx:
 
-```bash
-apt install -y caddy
-printf 'yourdomain.com {\n\treverse_proxy localhost:8080\n}\n' > /etc/caddy/Caddyfile
-systemctl reload caddy
+```nginx
+server {
+    listen 80;
+    server_name launch.yourdomain.com;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
-Then set `APP_URL=https://yourdomain.com` in `.env` and
+…then `certbot --nginx -d launch.yourdomain.com` for HTTPS. (Caddy
+equivalent: `launch.yourdomain.com { reverse_proxy localhost:8080 }` —
+certificates are automatic.) Finally set
+`APP_URL=https://launch.yourdomain.com` in `.env` and
 `docker compose up -d` again.
 
 ## Free hosting (Render + Neon + GitHub Actions)
