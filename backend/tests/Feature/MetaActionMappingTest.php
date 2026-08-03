@@ -203,8 +203,10 @@ class MetaActionMappingTest extends TestCase
             parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
             $range = json_decode($query['time_range'] ?? '{}', true);
 
-            return isset($range['since'])
-                && $range['since'] === now()->subDays(90)->toDateString();
+            // "until" must be today: Meta's last_Nd presets stop at
+            // yesterday, which hid conversions from the last 24 hours.
+            return ($range['since'] ?? null) === now()->subDays(90)->toDateString()
+                && ($range['until'] ?? null) === now()->toDateString();
         });
     }
 
