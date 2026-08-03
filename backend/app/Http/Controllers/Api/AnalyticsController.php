@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -22,13 +23,13 @@ class AnalyticsController extends Controller
         ],
         'ads' => [
             ['metric' => 'spend', 'label' => 'Spend'],
-            ['metric' => 'cpc', 'label' => 'CPC', 'level' => true],
-            ['metric' => 'cpm', 'label' => 'CPM', 'level' => true],
-            ['metric' => 'ctr', 'label' => 'CTR', 'level' => true],
+            ['metric' => 'cpc', 'label' => 'CPC'],
+            ['metric' => 'cpm', 'label' => 'CPM'],
+            ['metric' => 'ctr', 'label' => 'CTR'],
             ['metric' => 'clicks', 'label' => 'Clicks'],
         ],
         'email' => [
-            ['metric' => 'email_subscribers', 'label' => 'Subscribers', 'level' => true],
+            ['metric' => 'email_subscribers', 'label' => 'Subscribers'],
             ['metric' => 'email_opens', 'label' => 'Opens'],
             ['metric' => 'email_clicks', 'label' => 'Clicks'],
             ['metric' => 'email_unsubscribes', 'label' => 'Unsubscribes'],
@@ -39,8 +40,12 @@ class AnalyticsController extends Controller
         ],
     ];
 
-    public function show(Request $request, Project $project, MetricSeries $series): JsonResponse
-    {
+    public function show(
+        Request $request,
+        Project $project,
+        MetricSeries $series,
+        MetricCatalog $catalog,
+    ): JsonResponse {
         $this->authorize('view', $project);
 
         $validated = $request->validate([
@@ -53,10 +58,11 @@ class AnalyticsController extends Controller
         $metrics = array_map(fn (array $definition) => [
             'metric' => $definition['metric'],
             'label' => $definition['label'],
-            'series' => $series->daily($project, $definition['metric'], $days, $definition['level'] ?? false),
+            'series' => $series->daily($project, $definition['metric'], $days),
             'total' => $series->sum($project, $definition['metric'], $days),
             'latest' => $series->latest($project, $definition['metric']),
             'change' => $series->changePercent($project, $definition['metric']),
+            'aggregation' => $catalog->aggregation($definition['metric']),
         ], self::CATEGORIES[$validated['category']]);
 
         return response()->json(['category' => $validated['category'], 'metrics' => $metrics]);

@@ -17,9 +17,20 @@ class MailerLiteIntegration extends BaseIntegration
         return 'MailerLite';
     }
 
-    public function requiredCredentials(): array
+    public function credentialFields(): array
     {
-        return ['api_key'];
+        return [
+            'api_key' => [
+                'label' => 'API key',
+                'help' => 'MailerLite → Integrations → API → Generate new token.',
+                'type' => 'password',
+            ],
+        ];
+    }
+
+    public function docsUrl(): ?string
+    {
+        return 'https://developers.mailerlite.com/docs/#authentication';
     }
 
     protected function fetchMetrics(array $credentials): array

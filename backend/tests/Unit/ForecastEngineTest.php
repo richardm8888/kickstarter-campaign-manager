@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Forecasting\ForecastEngine;
 use App\Forecasting\ForecastInput;
+use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
 use PHPUnit\Framework\TestCase;
 
@@ -15,7 +16,7 @@ class ForecastEngineTest extends TestCase
 {
     private function engine(): ForecastEngine
     {
-        return new ForecastEngine(new MetricSeries);
+        return new ForecastEngine(new MetricSeries(new MetricCatalog));
     }
 
     private function input(array $overrides = []): ForecastInput

@@ -22,6 +22,23 @@ abstract class BaseIntegration implements IntegrationContract
      */
     abstract protected function fetchMetrics(array $credentials): array;
 
+    /** Derived from the field definitions so the two can never drift apart. */
+    public function requiredCredentials(): array
+    {
+        return array_keys($this->credentialFields());
+    }
+
+    public function docsUrl(): ?string
+    {
+        return null;
+    }
+
+    /** Provider-specific credential checks beyond "is present". */
+    protected function validateCredentials(array $credentials): void
+    {
+        //
+    }
+
     public function connect(array $credentials): void
     {
         $missing = array_diff($this->requiredCredentials(), array_keys(array_filter($credentials)));
@@ -31,6 +48,8 @@ abstract class BaseIntegration implements IntegrationContract
                 'credentials' => ['Missing credentials: '.implode(', ', $missing)],
             ]);
         }
+
+        $this->validateCredentials($credentials);
 
         $this->record()->fill([
             'credentials' => array_intersect_key($credentials, array_flip($this->requiredCredentials())),
@@ -98,6 +117,8 @@ abstract class BaseIntegration implements IntegrationContract
             'provider' => $this->provider(),
             'display_name' => $this->displayName(),
             'required_credentials' => $this->requiredCredentials(),
+            'credential_fields' => $this->credentialFields(),
+            'docs_url' => $this->docsUrl(),
             'status' => $record?->status ?? IntegrationModel::STATUS_DISCONNECTED,
             'status_message' => $record?->status_message,
             'last_synced_at' => $record?->last_synced_at?->toIso8601String(),

@@ -17,9 +17,21 @@ class StripeIntegration extends BaseIntegration
         return 'Stripe';
     }
 
-    public function requiredCredentials(): array
+    public function credentialFields(): array
     {
-        return ['secret_key'];
+        return [
+            'secret_key' => [
+                'label' => 'Secret key',
+                'help' => 'Stripe → Developers → API keys. A restricted key with read access to charges is enough.',
+                'type' => 'password',
+                'placeholder' => 'sk_live_… or rk_live_…',
+            ],
+        ];
+    }
+
+    public function docsUrl(): ?string
+    {
+        return 'https://dashboard.stripe.com/apikeys';
     }
 
     protected function fetchMetrics(array $credentials): array

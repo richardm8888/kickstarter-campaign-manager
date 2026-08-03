@@ -40,4 +40,10 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5'),
     ],
 
+    'meta' => [
+        // Graph API versions are retired roughly two years after release;
+        // check developers.facebook.com/docs/graph-api/changelog and bump.
+        'api_version' => env('META_API_VERSION', 'v23.0'),
+    ],
+
 ];

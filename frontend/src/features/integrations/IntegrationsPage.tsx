@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Check, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Check, ExternalLink, RefreshCw } from 'lucide-react'
 import {
   connectIntegration,
   disconnectIntegration,
@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 import { ApiError } from '@/lib/api'
 import type { IntegrationStatus } from '@/lib/types'
 
@@ -146,22 +147,58 @@ function IntegrationCard({ projectId, integration }: {
         </div>
 
         {open && integration.status !== 'connected' && (
-          <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 border-t border-border pt-4" noValidate>
-            {integration.required_credentials.map((field) => (
-              <div key={field} className="flex flex-col gap-1.5">
-                <Label htmlFor={`${integration.provider}-${field}`}>
-                  {field.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase())}
-                </Label>
-                <Input
-                  id={`${integration.provider}-${field}`}
-                  type="password"
-                  autoComplete="off"
-                  required
-                  value={credentials[field] ?? ''}
-                  onChange={(e) => setCredentials((c) => ({ ...c, [field]: e.target.value }))}
-                />
-              </div>
-            ))}
+          <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4 border-t border-border pt-4" noValidate>
+            {integration.docs_url && (
+              <a
+                href={integration.docs_url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="flex items-center gap-1.5 text-xs font-medium text-accent-foreground hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden />
+                {integration.display_name} setup guide
+              </a>
+            )}
+
+            {integration.required_credentials.map((field) => {
+              const spec = integration.credential_fields?.[field]
+              const inputId = `${integration.provider}-${field}`
+              const helpId = `${inputId}-help`
+              const label =
+                spec?.label ?? field.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase())
+
+              return (
+                <div key={field} className="flex flex-col gap-1.5">
+                  <Label htmlFor={inputId}>{label}</Label>
+                  {spec?.help && (
+                    <p id={helpId} className="text-xs leading-relaxed text-muted-foreground">
+                      {spec.help}
+                    </p>
+                  )}
+                  {spec?.type === 'textarea' ? (
+                    <Textarea
+                      id={inputId}
+                      aria-describedby={spec.help ? helpId : undefined}
+                      placeholder={spec.placeholder}
+                      required
+                      value={credentials[field] ?? ''}
+                      onChange={(e) => setCredentials((c) => ({ ...c, [field]: e.target.value }))}
+                    />
+                  ) : (
+                    <Input
+                      id={inputId}
+                      type="password"
+                      autoComplete="off"
+                      aria-describedby={spec?.help ? helpId : undefined}
+                      placeholder={spec?.placeholder}
+                      required
+                      value={credentials[field] ?? ''}
+                      onChange={(e) => setCredentials((c) => ({ ...c, [field]: e.target.value }))}
+                    />
+                  )}
+                </div>
+              )
+            })}
             {error && (
               <p role="alert" className="text-xs text-destructive">
                 {error}

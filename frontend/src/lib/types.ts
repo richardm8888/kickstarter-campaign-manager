@@ -33,10 +33,19 @@ export interface LandingPage {
   sections: Section[]
 }
 
+export interface CredentialField {
+  label: string
+  help: string
+  type: 'password' | 'textarea'
+  placeholder?: string
+}
+
 export interface IntegrationStatus {
   provider: string
   display_name: string
   required_credentials: string[]
+  credential_fields: Record<string, CredentialField>
+  docs_url: string | null
   status: 'connected' | 'needs_api_key' | 'error' | 'disconnected'
   status_message: string | null
   last_synced_at: string | null
