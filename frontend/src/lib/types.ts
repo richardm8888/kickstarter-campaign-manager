@@ -229,7 +229,36 @@ export interface ForecastRequirements {
   required_backer_rate: { rate: number; likelihood: string } | null
 }
 
+export interface PlanDay {
+  date: string
+  is_future: boolean
+  is_final_week: boolean
+  recommended_spend: number
+  cumulative_spend: number
+  projected_subscribers: number | null
+  actual_subscribers: number | null
+}
+
+export interface LaunchPlan {
+  has_launch_date: boolean
+  launched?: boolean
+  launch_date?: string
+  days_remaining?: number
+  days: PlanDay[]
+  summary?: {
+    starting_list: number
+    projected_at_launch: number
+    target_list: number
+    on_track: boolean
+    shortfall: number
+    daily_spend: number
+    final_week_daily_spend: number
+    total_spend: number
+  }
+}
+
 export interface ForecastReport {
+  plan: LaunchPlan
   scenarios: ForecastScenario[]
   requirements: ForecastRequirements | []
   ratings: { cpc: FunnelRating; conversion: FunnelRating }

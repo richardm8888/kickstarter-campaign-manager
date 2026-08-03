@@ -3,6 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Check, X } from 'lucide-react'
 import { getForecast, saveAdSpend } from './api'
+import { LaunchTracker } from './LaunchTracker'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -217,6 +218,8 @@ export function ForecastPage() {
         </div>
 
         <div className="flex flex-col gap-4 lg:col-span-3">
+          <LaunchTracker plan={data.plan} />
+
           <Card>
             <CardContent className="p-6">
               <p className="text-sm text-muted-foreground">

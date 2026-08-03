@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Forecasting\ForecastEngine;
 use App\Forecasting\FunnelRating;
+use App\Forecasting\LaunchPlan;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -23,6 +24,7 @@ class ForecastController extends Controller
     public function __construct(
         private readonly ForecastEngine $engine,
         private readonly FunnelRating $ratings,
+        private readonly LaunchPlan $plan,
     ) {}
 
     public function show(Request $request, Project $project): JsonResponse
@@ -52,6 +54,7 @@ class ForecastController extends Controller
                 $input->visitorToSubscriberRate,
                 $cpcMeasured && $conversionMeasured,
             ),
+            'plan' => $this->plan->build($project, $plannedAdSpend),
             'planning_rate' => ForecastEngine::PLANNING_RATE,
             'recommended_budget' => $recommended,
             'measured' => [

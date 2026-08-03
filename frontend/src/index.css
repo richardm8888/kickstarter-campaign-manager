@@ -41,6 +41,7 @@
 
   /* dataviz roles (validated reference palette, light) */
   --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
   --viz-ordinal-1: #86b6ef;
   --viz-ordinal-2: #6da7ec;
   --viz-ordinal-3: #5598e7;
@@ -75,6 +76,7 @@
 
   /* dataviz roles, dark-stepped */
   --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
   --viz-ordinal-1: #86b6ef;
   --viz-ordinal-2: #6da7ec;
   --viz-ordinal-3: #5598e7;
