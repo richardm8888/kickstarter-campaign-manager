@@ -181,4 +181,51 @@ class MetaActionMappingTest extends TestCase
         $this->assertSame(9.0, $this->leadsRecorded($project));
         $this->assertDatabaseHas('metric_snapshots', ['metric' => 'ad_spend', 'value' => 10]);
     }
+
+    public function test_the_sync_reads_a_ninety_day_window_by_default(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response($this->insights([
+            ['action_type' => 'lead', 'value' => '2'],
+        ]))]);
+
+        $project = Project::factory()->create();
+        $this->connect($project);
+
+        app(RunIntegrationSync::class)->handle($project, 'meta');
+
+        // Ads that stopped weeks ago must still be fetched, otherwise they
+        // vanish from the Ads screen despite having spent money.
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), 'insights')) {
+                return true;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+            $range = json_decode($query['time_range'] ?? '{}', true);
+
+            return isset($range['since'])
+                && $range['since'] === now()->subDays(90)->toDateString();
+        });
+    }
+
+    public function test_the_window_can_be_widened_per_project(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response($this->insights([]))]);
+
+        $project = Project::factory()->create();
+        $this->connect($project, ['insights_days' => 180]);
+
+        app(RunIntegrationSync::class)->handle($project, 'meta');
+
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), 'insights')) {
+                return true;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+            $range = json_decode($query['time_range'] ?? '{}', true);
+
+            return ($range['since'] ?? null) === now()->subDays(180)->toDateString();
+        });
+    }
 }

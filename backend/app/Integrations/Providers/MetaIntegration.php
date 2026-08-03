@@ -92,10 +92,17 @@ class MetaIntegration extends BaseIntegration
 
         $url = "https://graph.facebook.com/{$version}/act_{$accountId}/insights";
 
+        // An explicit range rather than a preset, so the lookback can match
+        // the longest window the app offers (and be widened per project).
+        $lookback = $this->lookbackDays();
+
         $query = [
             'access_token' => $credentials['access_token'],
             'level' => 'ad',
-            'date_preset' => 'last_14d',
+            'time_range' => json_encode([
+                'since' => now()->subDays($lookback)->toDateString(),
+                'until' => now()->toDateString(),
+            ]),
             'time_increment' => 1,
             'limit' => 500,
         ];
@@ -209,6 +216,18 @@ class MetaIntegration extends BaseIntegration
         return max($counts);
     }
 
+    /**
+     * How far back each sync reads. Defaults to 90 days so ads that stopped
+     * running still appear, and so every range the Ads screen offers is
+     * backed by real data rather than silently truncated.
+     */
+    private function lookbackDays(): int
+    {
+        $configured = (int) ($this->record()->settings['insights_days'] ?? 0);
+
+        return $configured > 0 ? min($configured, 365) : 90;
+    }
+
     /** Action types this project treats as each conversion, overridable per project. */
     private function actionTypesFor(string $event): array
     {
@@ -249,7 +268,10 @@ class MetaIntegration extends BaseIntegration
             [
                 'access_token' => $credentials['access_token'],
                 'level' => 'account',
-                'date_preset' => $days <= 7 ? 'last_7d' : 'last_14d',
+                'time_range' => json_encode([
+                    'since' => now()->subDays($days)->toDateString(),
+                    'until' => now()->toDateString(),
+                ]),
                 'fields' => 'actions',
                 'limit' => 100,
             ],
