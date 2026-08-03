@@ -173,6 +173,29 @@ runners and pushes them to GHCR. The droplet then only downloads them:
 Each release is also tagged with its commit SHA, so `TAG=<sha>` pins or
 rolls back to any previous build.
 
+## Troubleshooting deployment
+
+**`permission denied for schema public` on first migration.** PostgreSQL 15+
+only lets the owner create objects in the `public` schema, so a
+non-owner application user cannot create the `migrations` table. Connect as
+the admin user (`doadmin` on DigitalOcean) to the application's database —
+not `defaultdb` — and hand the schema over:
+
+```sql
+GRANT ALL PRIVILEGES ON DATABASE <database> TO "<app_user>";
+GRANT USAGE, CREATE ON SCHEMA public TO "<app_user>";
+ALTER SCHEMA public OWNER TO "<app_user>";
+```
+
+**`dependency failed to start`** on queue or scheduler means the API
+container exited or never became healthy — the real error is in
+`docker compose logs backend`. A connection timeout usually means the host
+isn't in the database's trusted sources.
+
+**`DB_URL` truncated.** In a `.env` file `#` starts a comment, so a password
+containing one is silently cut short. Wrap the value in single quotes and
+verify with `docker compose run --rm backend printenv DB_URL`.
+
 ## Keeping it running
 
 Every service sets `restart: unless-stopped`, so containers restart on
