@@ -63,7 +63,7 @@ class MetaIntegration extends BaseIntegration
         return [
             'access_token' => [
                 'label' => 'Access token',
-                'help' => 'Business Settings → Users → System users → Generate token, with the ads_read permission. Set it never to expire; a Graph API Explorer token lasts about an hour.',
+                'help' => 'Business Settings → Users → System users → Generate token. Tick ads_read, plus leads_retrieval if you run Instant Form ads, and set it never to expire (a Graph API Explorer token lasts about an hour). For form leads the same system user also needs Leads Access on the Page under Accounts → Pages.',
                 'type' => 'password',
             ],
             'ad_account_id' => [
