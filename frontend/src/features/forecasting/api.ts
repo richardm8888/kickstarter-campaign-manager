@@ -1,23 +1,21 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Forecast, ForecastInput } from '@/lib/types'
+import type { ForecastReport } from '@/lib/types'
 
-export const getForecast = (projectId: string) =>
+export const getForecast = (projectId: string, plannedAdSpend: number | null) =>
   queryOptions({
-    queryKey: ['projects', projectId, 'forecast'],
-    queryFn: () => api.get<{ forecast: Forecast; input: ForecastInput }>(`/projects/${projectId}/forecast`),
+    queryKey: ['projects', projectId, 'forecast', plannedAdSpend],
+    queryFn: () =>
+      api.get<ForecastReport>(
+        `/projects/${projectId}/forecast${plannedAdSpend === null ? '' : `?planned_ad_spend=${plannedAdSpend}`}`,
+      ),
   })
 
-export function saveAssumptions(
+export function saveAdSpend(
   projectId: string,
-  assumptions: Partial<ForecastInput>,
-): Promise<{ message: string }> {
-  return api.put(`/projects/${projectId}/forecast/assumptions`, assumptions)
-}
-
-export function previewForecast(
-  projectId: string,
-  overrides: Partial<ForecastInput>,
-): Promise<{ forecast: Forecast }> {
-  return api.post(`/projects/${projectId}/forecast/preview`, overrides)
+  plannedAdSpend: number,
+): Promise<{ planned_ad_spend: number; message: string }> {
+  return api.put(`/projects/${projectId}/forecast/assumptions`, {
+    planned_ad_spend: plannedAdSpend,
+  })
 }

@@ -206,26 +206,29 @@ export interface CampaignHealth {
   recommendations: Insight[]
 }
 
-export interface Forecast {
-  projected_visitors: number
-  projected_subscribers: number
-  projected_vips: number
+export interface ForecastScenario {
+  rate: number
+  label: string
   expected_backers: number
   expected_funding: number
-  funding_goal: number
   goal_coverage: number
-  confidence: 'low' | 'medium' | 'high'
-  assumptions: Record<string, number>
+  funds_the_goal: boolean
 }
 
-export interface ForecastInput {
-  email_subscribers: number
-  vip_count: number
-  planned_ad_spend: number
-  cpc: number
-  visitor_to_subscriber_rate: number
-  subscriber_to_backer_rate: number
-  vip_to_backer_rate: number
-  average_pledge: number
-  funding_goal: number
+export interface ForecastReport {
+  scenarios: ForecastScenario[]
+  planning_rate: number
+  recommended_budget: number
+  confidence: 'low' | 'medium' | 'high'
+  measured: {
+    email_subscribers: number
+    vip_count: number
+    planned_ad_spend: number
+    cpc: number
+    visitor_to_subscriber_rate: number
+    average_pledge: number
+    funding_goal: number
+    cpc_measured: boolean
+    conversion_measured: boolean
+  }
 }

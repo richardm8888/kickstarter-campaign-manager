@@ -31,7 +31,10 @@ final readonly class ForecastInput
         return [
             'cpc' => 0.85,
             'visitor_to_subscriber_rate' => 0.22,
-            'subscriber_to_backer_rate' => 0.04,
+            // The most cautious of the scenarios, so nothing built on this
+            // default — including how much an ad may spend per signup —
+            // assumes a better outcome than the floor.
+            'subscriber_to_backer_rate' => 0.10,
             'vip_to_backer_rate' => 0.30,
         ];
     }

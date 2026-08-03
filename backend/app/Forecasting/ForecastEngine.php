@@ -16,10 +16,105 @@ use App\Services\Analytics\MetricSeries;
  */
 class ForecastEngine
 {
+    /**
+     * How many of your email list back the campaign. Nobody knows theirs
+     * before launching, so rather than asking, the forecast is shown across
+     * a conservative range: a cold, bought list at the bottom, an engaged
+     * list that has been warmed up properly at the top.
+     */
+    public const BACKER_RATE_SCENARIOS = [0.10, 0.15, 0.20, 0.30];
+
+    /** The rate a budget recommendation is built on — deliberately cautious. */
+    public const PLANNING_RATE = 0.15;
+
     public function __construct(
         private readonly MetricSeries $series,
         private readonly AudienceSize $audience,
     ) {}
+
+    /**
+     * The same forecast at each plausible backer rate, so a creator sees
+     * the range they are betting on rather than one false precision.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function scenarios(Project $project, ?int $plannedAdSpend = null): array
+    {
+        $base = $this->inputFor($project, $plannedAdSpend);
+
+        return array_map(function (float $rate) use ($base) {
+            $forecast = $this->forecast($this->withBackerRate($base, $rate));
+
+            return [
+                'rate' => $rate,
+                'label' => round($rate * 100).'%',
+                'expected_backers' => $forecast->expectedBackers,
+                'expected_funding' => $forecast->expectedFunding,
+                'goal_coverage' => $forecast->goalCoverage,
+                'funds_the_goal' => $forecast->expectedFunding >= $forecast->fundingGoal,
+            ];
+        }, self::BACKER_RATE_SCENARIOS);
+    }
+
+    /**
+     * Ad spend needed to reach the funding goal, in minor units.
+     *
+     * Works backwards: the goal implies a number of backers, which implies
+     * a list size at the planning rate, which implies visitors at the
+     * observed conversion rate, which implies spend at the observed CPC.
+     * Zero when the existing list is already big enough.
+     */
+    public function recommendedBudget(Project $project, ?float $rate = null): int
+    {
+        $input = $this->inputFor($project, 0);
+        $rate ??= self::PLANNING_RATE;
+
+        if ($input->averagePledge <= 0 || $input->fundingGoal <= 0 || $rate <= 0) {
+            return 0;
+        }
+
+        $backersNeeded = (int) ceil($input->fundingGoal / $input->averagePledge);
+        $subscribersNeeded = (int) ceil($backersNeeded / $rate);
+        $shortfall = max(0, $subscribersNeeded - $input->emailSubscribers);
+
+        if ($shortfall === 0 || $input->visitorToSubscriberRate <= 0 || $input->cpc <= 0) {
+            return 0;
+        }
+
+        $visitorsNeeded = (int) ceil($shortfall / $input->visitorToSubscriberRate);
+
+        return (int) round($visitorsNeeded * $input->cpc * 100);
+    }
+
+    /** Whether cost per click came from this account's own ads. */
+    public function hasMeasuredCpc(Project $project): bool
+    {
+        return $this->series->latest($project, 'cpc', 'meta') !== null;
+    }
+
+    /** Whether the visitor-to-subscriber rate came from real traffic. */
+    public function hasMeasuredConversion(Project $project): bool
+    {
+        return $this->observedSignupRate($project) !== null;
+    }
+
+    private function withBackerRate(ForecastInput $input, float $rate): ForecastInput
+    {
+        return new ForecastInput(
+            emailSubscribers: $input->emailSubscribers,
+            vipCount: $input->vipCount,
+            plannedAdSpend: $input->plannedAdSpend,
+            cpc: $input->cpc,
+            visitorToSubscriberRate: $input->visitorToSubscriberRate,
+            subscriberToBackerRate: $rate,
+            // VIPs and followers already convert better than a plain
+            // subscriber; hold that advantage as the base rate moves.
+            vipToBackerRate: min(1.0, $rate * 2),
+            averagePledge: $input->averagePledge,
+            fundingGoal: $input->fundingGoal,
+            dataCompleteness: $input->dataCompleteness,
+        );
+    }
 
     public function forecast(ForecastInput $input): Forecast
     {
@@ -97,13 +192,11 @@ class ForecastEngine
             emailSubscribers: $subscribers,
             vipCount: $vips,
             plannedAdSpend: $plannedAdSpend ?? $saved['planned_ad_spend'] ?? 1000_00,
-            cpc: (float) ($saved['cpc'] ?? $observedCpc ?? $defaults['cpc']),
-            visitorToSubscriberRate: (float) ($saved['visitor_to_subscriber_rate']
-                ?? $observedConversion
-                ?? $defaults['visitor_to_subscriber_rate']),
-            subscriberToBackerRate: (float) ($saved['subscriber_to_backer_rate'] ?? $defaults['subscriber_to_backer_rate']),
-            vipToBackerRate: (float) ($saved['vip_to_backer_rate'] ?? $defaults['vip_to_backer_rate']),
-            averagePledge: $saved['average_pledge'] ?? ($project->average_pledge > 0 ? $project->average_pledge : 45_00),
+            cpc: (float) ($observedCpc ?? $defaults['cpc']),
+            visitorToSubscriberRate: (float) ($observedConversion ?? $defaults['visitor_to_subscriber_rate']),
+            subscriberToBackerRate: (float) $defaults['subscriber_to_backer_rate'],
+            vipToBackerRate: (float) $defaults['vip_to_backer_rate'],
+            averagePledge: $project->average_pledge > 0 ? $project->average_pledge : 45_00,
             fundingGoal: $project->funding_goal,
             dataCompleteness: count(array_filter($observed)) / count($observed),
         );
@@ -145,8 +238,20 @@ class ForecastEngine
         };
     }
 
+    /**
+     * How many visitors become subscribers, measured rather than guessed.
+     * Ad clicks are the better denominator when available: they are the
+     * traffic the budget actually buys.
+     */
     private function observedSignupRate(Project $project): ?float
     {
+        $adClicks = $this->series->sum($project, 'ad_clicks', 30);
+        $adLeads = $this->series->sum($project, 'ad_leads', 30);
+
+        if ($adClicks > 0 && $adLeads > 0) {
+            return round(min(1.0, $adLeads / $adClicks), 4);
+        }
+
         $sessions = $this->series->sum($project, 'sessions', 30);
 
         if ($sessions <= 0) {
@@ -157,6 +262,6 @@ class ForecastEngine
             ->where('created_at', '>=', now()->subDays(30))
             ->count();
 
-        return $signups > 0 ? round($signups / $sessions, 4) : null;
+        return $signups > 0 ? round(min(1.0, $signups / $sessions), 4) : null;
     }
 }

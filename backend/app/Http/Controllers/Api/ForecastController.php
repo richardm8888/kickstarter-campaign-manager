@@ -3,13 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Forecasting\ForecastEngine;
-use App\Forecasting\ForecastInput;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * The forecast asks for one thing: planned ad spend. Cost per click and
+ * conversion rates are measured from the creator's own ads, and the
+ * backer rate — which nobody can know before launching — is shown as a
+ * range rather than demanded as an input.
+ */
 class ForecastController extends Controller
 {
     use AuthorizesRequests;
@@ -21,82 +26,49 @@ class ForecastController extends Controller
         $this->authorize('view', $project);
 
         $validated = $request->validate([
-            'planned_ad_spend' => ['sometimes', 'integer', 'min:0'],
+            'planned_ad_spend' => ['sometimes', 'integer', 'min:0', 'max:100000000'],
         ]);
 
-        $input = $this->engine->inputFor($project, $validated['planned_ad_spend'] ?? null);
+        $plannedAdSpend = $validated['planned_ad_spend'] ?? null;
+        $input = $this->engine->inputFor($project, $plannedAdSpend);
+        $recommended = $this->engine->recommendedBudget($project);
 
         return response()->json([
-            'forecast' => $this->engine->forecast($input)->toArray(),
-            'input' => [
+            'scenarios' => $this->engine->scenarios($project, $plannedAdSpend),
+            'planning_rate' => ForecastEngine::PLANNING_RATE,
+            'recommended_budget' => $recommended,
+            'measured' => [
                 'email_subscribers' => $input->emailSubscribers,
                 'vip_count' => $input->vipCount,
                 'planned_ad_spend' => $input->plannedAdSpend,
                 'cpc' => $input->cpc,
                 'visitor_to_subscriber_rate' => $input->visitorToSubscriberRate,
-                'subscriber_to_backer_rate' => $input->subscriberToBackerRate,
-                'vip_to_backer_rate' => $input->vipToBackerRate,
                 'average_pledge' => $input->averagePledge,
                 'funding_goal' => $input->fundingGoal,
+                // Which figures came from this account rather than benchmarks.
+                'cpc_measured' => $this->engine->hasMeasuredCpc($project),
+                'conversion_measured' => $this->engine->hasMeasuredConversion($project),
             ],
+            'confidence' => $this->engine->forecast($input)->confidence,
         ]);
     }
 
-    /** Stores the creator's assumptions so the screen reopens where they left it. */
+    /** Remembers the planned spend so the screen reopens where it was left. */
     public function saveAssumptions(Request $request, Project $project): JsonResponse
     {
         $this->authorize('update', $project);
 
         $validated = $request->validate([
-            'planned_ad_spend' => ['sometimes', 'integer', 'min:0'],
-            'cpc' => ['sometimes', 'numeric', 'min:0.01'],
-            'visitor_to_subscriber_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'subscriber_to_backer_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'vip_to_backer_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'average_pledge' => ['sometimes', 'integer', 'min:0'],
+            'planned_ad_spend' => ['required', 'integer', 'min:0', 'max:100000000'],
         ]);
 
         $project->update([
-            'forecast_assumptions' => [...$project->forecast_assumptions ?? [], ...$validated],
+            'forecast_assumptions' => ['planned_ad_spend' => $validated['planned_ad_spend']],
         ]);
 
         return response()->json([
-            'assumptions' => $project->forecast_assumptions,
-            'message' => 'Saved. These will be used next time.',
+            'planned_ad_spend' => $validated['planned_ad_spend'],
+            'message' => 'Saved as your planned budget.',
         ]);
-    }
-
-    /** What-if forecast with user-supplied assumptions overriding observed data. */
-    public function preview(Request $request, Project $project): JsonResponse
-    {
-        $this->authorize('view', $project);
-
-        $validated = $request->validate([
-            'email_subscribers' => ['sometimes', 'integer', 'min:0'],
-            'vip_count' => ['sometimes', 'integer', 'min:0'],
-            'planned_ad_spend' => ['sometimes', 'integer', 'min:0'],
-            'cpc' => ['sometimes', 'numeric', 'min:0.01'],
-            'visitor_to_subscriber_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'subscriber_to_backer_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'vip_to_backer_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'average_pledge' => ['sometimes', 'integer', 'min:0'],
-        ]);
-
-        $base = $this->engine->inputFor($project, $validated['planned_ad_spend'] ?? null);
-
-        $input = new ForecastInput(
-            emailSubscribers: $validated['email_subscribers'] ?? $base->emailSubscribers,
-            vipCount: $validated['vip_count'] ?? $base->vipCount,
-            plannedAdSpend: $validated['planned_ad_spend'] ?? $base->plannedAdSpend,
-            cpc: (float) ($validated['cpc'] ?? $base->cpc),
-            visitorToSubscriberRate: (float) ($validated['visitor_to_subscriber_rate'] ?? $base->visitorToSubscriberRate),
-            subscriberToBackerRate: (float) ($validated['subscriber_to_backer_rate'] ?? $base->subscriberToBackerRate),
-            vipToBackerRate: (float) ($validated['vip_to_backer_rate'] ?? $base->vipToBackerRate),
-            averagePledge: $validated['average_pledge'] ?? $base->averagePledge,
-            fundingGoal: $base->fundingGoal,
-            dataCompleteness: $base->dataCompleteness,
-        );
-
-        return response()->json(['forecast' => $this->engine->forecast($input)->toArray()]);
     }
 }

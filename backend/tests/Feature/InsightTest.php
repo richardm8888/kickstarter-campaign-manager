@@ -93,13 +93,10 @@ class InsightTest extends TestCase
         $this->getJson("/api/projects/{$project->id}/forecast")
             ->assertOk()
             ->assertJsonStructure([
-                'forecast' => ['projected_visitors', 'expected_backers', 'expected_funding', 'confidence'],
-                'input' => ['cpc', 'average_pledge', 'funding_goal'],
+                'scenarios' => [['rate', 'label', 'expected_backers', 'expected_funding', 'funds_the_goal']],
+                'recommended_budget',
+                'measured' => ['cpc', 'average_pledge', 'funding_goal', 'cpc_measured'],
+                'confidence',
             ]);
-
-        $this->postJson("/api/projects/{$project->id}/forecast/preview", [
-            'planned_ad_spend' => 2000_00,
-            'cpc' => 0.5,
-        ])->assertOk()->assertJsonPath('forecast.projected_visitors', 4000);
     }
 }
