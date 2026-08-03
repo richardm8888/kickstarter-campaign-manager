@@ -232,6 +232,30 @@ docker compose exec backend php artisan queue:failed
 docker compose exec backend php artisan queue:retry all
 ```
 
+**Meta Instant Form leads.** Leads submitted through a Meta form stay
+inside Facebook, where you cannot email them. The scheduler imports them
+hourly and forwards them to MailerLite; run it on demand with:
+
+```bash
+docker compose exec backend php artisan meta:import-leads
+```
+
+The Meta token needs the `leads_retrieval` permission for this.
+
+**Kickstarter follows vs email signups.** If your ads send people to a
+Kickstarter page, the pixel's `Lead` event means a *follow*, not a contact
+you can email. Map it so the two are never conflated:
+
+```bash
+docker compose exec backend php artisan meta:actions   # see what Meta reports
+docker compose exec backend php artisan meta:map \
+  --follow="offsite_conversion.fb_pixel_lead" \
+  --lead="leadgen_grouped"
+```
+
+Follows then feed the Kickstarter step of the funnel, while signups stay
+the measure of list growth.
+
 **Health checks.** The API is probed via Laravel's `/up` endpoint and the
 frontend via its nginx root, so status is visible at a glance:
 

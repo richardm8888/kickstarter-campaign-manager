@@ -33,6 +33,27 @@ class MailerLiteIntegration extends BaseIntegration
         return 'https://developers.mailerlite.com/docs/#authentication';
     }
 
+    /**
+     * Adds (or updates) a subscriber. MailerLite upserts on email, so this
+     * is safe to retry.
+     */
+    public function addSubscriber(string $email, array $fields = []): bool
+    {
+        $record = $this->record();
+
+        if (! $record->isConnected() || $record->credentials === null) {
+            return false;
+        }
+
+        return Http::withToken($record->credentials['api_key'])
+            ->acceptJson()
+            ->post('https://connect.mailerlite.com/api/subscribers', array_filter([
+                'email' => $email,
+                'fields' => $fields ?: null,
+            ]))
+            ->successful();
+    }
+
     protected function fetchMetrics(array $credentials): array
     {
         $stats = Http::withToken($credentials['api_key'])

@@ -14,7 +14,8 @@ class MetaMapCommand extends Command
 {
     protected $signature = 'meta:map
         {--project= : Project id}
-        {--lead=* : Action type(s) that mean a signup}
+        {--lead=* : Action type(s) that mean an email signup you own}
+        {--follow=* : Action type(s) that mean a Kickstarter follow}
         {--view-content=* : Action type(s) that mean a page view}
         {--reset : Restore the built-in defaults}';
 
@@ -43,13 +44,19 @@ class MetaMapCommand extends Command
         $settings = $integration->settings ?? [];
 
         if ($this->option('reset')) {
-            unset($settings['lead_actions'], $settings['view_content_actions']);
+            unset($settings['lead_actions'], $settings['view_content_actions'], $settings['follow_actions']);
             $this->info('Restored the built-in action mapping.');
         }
 
         if ($leads = $this->option('lead')) {
             $settings['lead_actions'] = $leads;
             $this->info('Signups will be counted from: '.implode(', ', $leads));
+        }
+
+        if ($follows = $this->option('follow')) {
+            $settings['follow_actions'] = $follows;
+            $this->info('Kickstarter follows will be counted from: '.implode(', ', $follows));
+            $this->line('These are excluded from signups, so the two are never conflated.');
         }
 
         if ($views = $this->option('view-content')) {

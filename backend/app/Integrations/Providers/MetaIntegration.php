@@ -37,6 +37,17 @@ class MetaIntegration extends BaseIntegration
      */
     public const LANDING_PAGE_VIEW_ACTIONS = ['landing_page_view'];
 
+    /**
+     * Instant Form submissions — an email address the creator owns and can
+     * mail directly. Distinct from a pixel "Lead" fired on someone else's
+     * page (see follow_actions), which is a following, not a contact.
+     */
+    public const FORM_LEAD_ACTIONS = [
+        'leadgen_grouped',
+        'onsite_conversion.lead_grouped',
+        'onsite_web_lead',
+    ];
+
     public function provider(): string
     {
         return 'meta';
@@ -106,8 +117,11 @@ class MetaIntegration extends BaseIntegration
             $days = $this->paginate($url, $query + ['fields' => $baseFields]);
         }
 
-        $leadActions = $this->actionTypesFor('lead');
+        $followActions = $this->actionTypesFor('follow');
         $viewContentActions = $this->actionTypesFor('view_content');
+
+        // Anything claimed as a follow is not also counted as a signup.
+        $leadActions = array_values(array_diff($this->actionTypesFor('lead'), $followActions));
 
         $rows = [];
         $accountTotals = [];
@@ -121,6 +135,7 @@ class MetaIntegration extends BaseIntegration
             $leads = $this->countActions($row['actions'] ?? [], $leadActions);
             $viewContent = $this->countActions($row['actions'] ?? [], $viewContentActions);
             $landingPageViews = $this->countActions($row['actions'] ?? [], self::LANDING_PAGE_VIEW_ACTIONS);
+            $follows = $this->countActions($row['actions'] ?? [], $followActions);
 
             $dimensions = [
                 'ad_id' => (string) ($row['ad_id'] ?? 'unknown'),
@@ -138,6 +153,7 @@ class MetaIntegration extends BaseIntegration
                 'ad_leads' => $leads,
                 'ad_view_content' => $viewContent,
                 'ad_landing_page_views' => $landingPageViews,
+                'ad_follows' => $follows,
             ] as $metric => $value) {
                 $rows[] = [
                     'metric' => $metric,
@@ -198,11 +214,18 @@ class MetaIntegration extends BaseIntegration
     {
         $configured = $this->record()->settings["{$event}_actions"] ?? null;
 
-        if (is_array($configured) && $configured !== []) {
+        if (is_array($configured)) {
             return $configured;
         }
 
-        return $event === 'lead' ? self::LEAD_ACTIONS : self::VIEW_CONTENT_ACTIONS;
+        return match ($event) {
+            'lead' => self::LEAD_ACTIONS,
+            'view_content' => self::VIEW_CONTENT_ACTIONS,
+            // Opt-in: only set when a creator sends traffic to a Kickstarter
+            // page, where a pixel "Lead" means a follow rather than a contact.
+            'follow' => [],
+            default => [],
+        };
     }
 
     /**
@@ -251,6 +274,81 @@ class MetaIntegration extends BaseIntegration
             array_keys($totals),
             array_values($totals),
         );
+    }
+
+    /**
+     * Instant Form submissions, newest first. These live inside Facebook —
+     * unless they are pulled out, the creator cannot email the people who
+     * signed up.
+     *
+     * Requires the leads_retrieval permission on the token.
+     *
+     * @return list<array{id: string, email: ?string, name: ?string, created_time: ?string}>
+     */
+    public function fetchFormLeads(int $days = 30): array
+    {
+        $record = $this->record();
+
+        if (! $record->isConnected() || $record->credentials === null) {
+            return [];
+        }
+
+        $credentials = $record->credentials;
+        $accountId = ltrim($credentials['ad_account_id'], 'act_');
+        $version = config('services.meta.api_version');
+        $since = now()->subDays($days)->timestamp;
+
+        // Forms belong to ads, so walk the ads that ran in the window.
+        $ads = $this->paginate("https://graph.facebook.com/{$version}/act_{$accountId}/ads", [
+            'access_token' => $credentials['access_token'],
+            'fields' => 'id',
+            'limit' => 200,
+        ]);
+
+        $leads = [];
+
+        foreach ($ads as $ad) {
+            $rows = $this->paginate("https://graph.facebook.com/{$version}/{$ad['id']}/leads", [
+                'access_token' => $credentials['access_token'],
+                'fields' => 'id,created_time,field_data',
+                'filtering' => json_encode([[
+                    'field' => 'time_created',
+                    'operator' => 'GREATER_THAN',
+                    'value' => $since,
+                ]]),
+                'limit' => 200,
+            ], maxPages: 5);
+
+            foreach ($rows as $row) {
+                $fields = $this->flattenFieldData($row['field_data'] ?? []);
+
+                $leads[] = [
+                    'id' => (string) ($row['id'] ?? ''),
+                    'email' => $fields['email'] ?? null,
+                    'name' => $fields['full_name'] ?? $fields['first_name'] ?? null,
+                    'created_time' => $row['created_time'] ?? null,
+                ];
+            }
+        }
+
+        return $leads;
+    }
+
+    /** Meta returns lead answers as [{name, values: []}]. */
+    private function flattenFieldData(array $fieldData): array
+    {
+        $fields = [];
+
+        foreach ($fieldData as $field) {
+            $name = strtolower((string) ($field['name'] ?? ''));
+            $value = $field['values'][0] ?? null;
+
+            if ($name !== '' && $value !== null) {
+                $fields[$name] = $value;
+            }
+        }
+
+        return $fields;
     }
 
     /** Follows Meta's cursor pagination so large accounts are not truncated. */

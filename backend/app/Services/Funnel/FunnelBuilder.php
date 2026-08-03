@@ -25,7 +25,12 @@ class FunnelBuilder
         $visitors = (int) $this->series->sum($project, 'sessions', self::WINDOW_DAYS);
         $subscribers = $project->subscribers()->count();
         $vips = $project->subscribers()->where('is_vip', true)->count();
-        $notifyFollowers = (int) ($this->series->latest($project, 'ks_followers') ?? 0);
+        // Follows of the Kickstarter page, either reported by Meta or
+        // entered manually as a running total.
+        $notifyFollowers = (int) max(
+            $this->series->sum($project, 'ad_follows', self::WINDOW_DAYS),
+            $this->series->latest($project, 'ks_followers') ?? 0,
+        );
         $forecast = $this->forecasts->forProject($project, 0);
 
         $steps = [

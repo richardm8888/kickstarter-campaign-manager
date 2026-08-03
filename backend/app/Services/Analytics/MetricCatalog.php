@@ -42,6 +42,15 @@ class MetricCatalog
 
         'signups' => self::DELTA,
         'vip_upgrades' => self::DELTA,
+
+        // Per-ad series (Meta restates each day, so daily totals).
+        'ad_spend' => self::DAILY_TOTAL,
+        'ad_clicks' => self::DAILY_TOTAL,
+        'ad_impressions' => self::DAILY_TOTAL,
+        'ad_leads' => self::DAILY_TOTAL,
+        'ad_follows' => self::DAILY_TOTAL,
+        'ad_view_content' => self::DAILY_TOTAL,
+        'ad_landing_page_views' => self::DAILY_TOTAL,
     ];
 
     public function aggregation(string $metric): string
