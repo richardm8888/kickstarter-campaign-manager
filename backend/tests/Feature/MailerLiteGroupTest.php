@@ -47,7 +47,8 @@ class MailerLiteGroupTest extends TestCase
             ->assertJsonPath('connected', true)
             ->assertJsonPath('groups.0.name', 'Launch list')
             ->assertJsonPath('groups.0.total', 143)
-            ->assertJsonPath('group_id', null);
+            ->assertJsonPath('group_id', null)
+            ->assertJsonPath('vip_group_id', null);
     }
 
     public function test_it_reports_when_mailerlite_is_not_connected(): void
@@ -136,5 +137,51 @@ class MailerLiteGroupTest extends TestCase
 
         $this->putJson("/api/projects/{$project->id}/integrations/mailerlite/group", ['group_id' => '111'])
             ->assertForbidden();
+    }
+
+    public function test_a_vip_group_can_be_set_and_its_count_recorded(): void
+    {
+        $this->fakeGroups();
+
+        $project = Project::factory()->create();
+        $this->connectMailerLite($project);
+        Sanctum::actingAs($project->user);
+
+        $this->putJson("/api/projects/{$project->id}/integrations/mailerlite/group", [
+            'group_id' => '111',
+            'vip_group_id' => '222',
+        ])->assertOk()->assertJsonPath('vip_group_id', '222');
+
+        // The sync records each configured group's size.
+        Http::fake([
+            'connect.mailerlite.com/api/subscribers?limit=0*' => Http::response(['total' => 155]),
+            'connect.mailerlite.com/api/groups*' => Http::response(['data' => [
+                ['id' => '111', 'name' => 'Launch list', 'active_count' => 143],
+                ['id' => '222', 'name' => 'VIPs', 'active_count' => 12],
+            ]]),
+            'connect.mailerlite.com/api/campaigns*' => Http::response(['data' => []]),
+            'connect.mailerlite.com/*' => Http::response(['data' => [], 'total' => 155]),
+        ]);
+
+        app(\App\Actions\RunIntegrationSync::class)->handle($project->fresh(), 'mailerlite');
+
+        $this->assertDatabaseHas('metric_snapshots', [
+            'project_id' => $project->id,
+            'metric' => 'email_vip_subscribers',
+            'value' => 12,
+        ]);
+    }
+
+    public function test_the_vip_count_reaches_the_dashboard(): void
+    {
+        $project = Project::factory()->create();
+        app(\App\Services\Analytics\MetricRecorder::class)
+            ->record($project, 'mailerlite', 'email_vip_subscribers', 12);
+
+        Sanctum::actingAs($project->user);
+
+        $this->getJson("/api/projects/{$project->id}/dashboard")
+            ->assertOk()
+            ->assertJsonPath('cards.vip_upgrades.value', 12);
     }
 }

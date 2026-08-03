@@ -45,6 +45,7 @@ class MailerLiteGroupController extends Controller
             'connected' => true,
             'groups' => $groups,
             'group_id' => $record->settings['group_id'] ?? null,
+            'vip_group_id' => $record->settings['vip_group_id'] ?? null,
         ]);
     }
 
@@ -53,21 +54,19 @@ class MailerLiteGroupController extends Controller
         $this->authorize('update', $project);
 
         $validated = $request->validate([
-            // Null clears it: contacts then land in no group at all.
-            'group_id' => ['present', 'nullable', 'string', 'max:64'],
+            // Null clears either one: contacts then land in no group at all.
+            'group_id' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'vip_group_id' => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
 
         $record = $project->integrations()->where('provider', 'mailerlite')->firstOrFail();
 
-        $record->update([
-            'settings' => [...$record->settings ?? [], 'group_id' => $validated['group_id']],
-        ]);
+        $record->update(['settings' => [...$record->settings ?? [], ...$validated]]);
 
         return response()->json([
-            'group_id' => $validated['group_id'],
-            'message' => $validated['group_id']
-                ? 'New contacts will join this group.'
-                : 'Contacts will no longer be added to a group.',
+            'group_id' => $record->settings['group_id'] ?? null,
+            'vip_group_id' => $record->settings['vip_group_id'] ?? null,
+            'message' => 'Saved.',
         ]);
     }
 }

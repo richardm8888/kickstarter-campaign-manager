@@ -25,9 +25,16 @@ class AudienceSize
         );
     }
 
+    /**
+     * VIPs come from our own £1 upgrade flow and, when a VIP group is
+     * configured, from the email provider — whichever knows about more.
+     */
     public function vips(Project $project): int
     {
-        return $project->subscribers()->where('is_vip', true)->count();
+        return max(
+            $project->subscribers()->where('is_vip', true)->count(),
+            (int) ($this->series->latest($project, 'email_vip_subscribers') ?? 0),
+        );
     }
 
     /** New contacts in the window, used for conversion and cost per signup. */

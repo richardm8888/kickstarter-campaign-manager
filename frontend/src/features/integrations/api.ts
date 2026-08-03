@@ -28,6 +28,7 @@ export interface MailerLiteGroups {
   connected: boolean
   groups: Array<{ id: string; name: string; total: number }>
   group_id: string | null
+  vip_group_id: string | null
   error?: string
 }
 
@@ -38,9 +39,9 @@ export const getMailerLiteGroups = (projectId: string) =>
       api.get<MailerLiteGroups>(`/projects/${projectId}/integrations/mailerlite/groups`),
   })
 
-export function setMailerLiteGroup(
+export function setMailerLiteGroups(
   projectId: string,
-  groupId: string | null,
-): Promise<{ group_id: string | null; message: string }> {
-  return api.put(`/projects/${projectId}/integrations/mailerlite/group`, { group_id: groupId })
+  input: { group_id?: string | null; vip_group_id?: string | null },
+): Promise<{ group_id: string | null; vip_group_id: string | null; message: string }> {
+  return api.put(`/projects/${projectId}/integrations/mailerlite/group`, input)
 }

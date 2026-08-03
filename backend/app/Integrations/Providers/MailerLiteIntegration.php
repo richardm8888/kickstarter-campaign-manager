@@ -97,7 +97,46 @@ class MailerLiteIntegration extends BaseIntegration
 
         $rows[] = ['metric' => 'email_subscribers', 'value' => (float) $total, 'recorded_at' => now()];
 
-        return [...$rows, ...$this->campaignMetrics($credentials), ...$this->cohortMetrics($credentials)];
+        return [
+            ...$rows,
+            ...$this->groupMetrics(),
+            ...$this->campaignMetrics($credentials),
+            ...$this->cohortMetrics($credentials),
+        ];
+    }
+
+    /**
+     * Sizes of the configured groups, so a VIP segment maintained in
+     * MailerLite is reflected here without anyone re-counting by hand.
+     */
+    private function groupMetrics(): array
+    {
+        $settings = $this->record()->settings ?? [];
+
+        $wanted = array_filter([
+            'email_subscribers_in_group' => $settings['group_id'] ?? null,
+            'email_vip_subscribers' => $settings['vip_group_id'] ?? null,
+        ]);
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $groups = collect($this->groups())->keyBy('id');
+
+        $rows = [];
+
+        foreach ($wanted as $metric => $groupId) {
+            if ($group = $groups->get((string) $groupId)) {
+                $rows[] = [
+                    'metric' => $metric,
+                    'value' => (float) $group['total'],
+                    'recorded_at' => now(),
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     /**
