@@ -51,9 +51,26 @@ class MetaActionMappingTest extends TestCase
             ->sum('value');
     }
 
-    private function sync(array $actions, array $settings = []): Project
+    /** Creatives that make an ad each of the three recommended types. */
+    private function creative(string $type): array
     {
-        Http::fake(['graph.facebook.com/*' => Http::response($this->insights($actions))]);
+        return match ($type) {
+            'instant_form' => ['object_story_spec' => ['link_data' => ['lead_gen_form_id' => '999']]],
+            'kickstarter' => ['object_story_spec' => ['link_data' => ['link' => 'https://www.kickstarter.com/projects/x/y']]],
+            'landing_page' => ['object_story_spec' => ['link_data' => ['link' => 'https://totallyfootballgame.co.uk']]],
+            default => [],
+        };
+    }
+
+    private function sync(array $actions, string $adType = 'instant_form', array $settings = []): Project
+    {
+        Http::fake([
+            '*/insights*' => Http::response($this->insights($actions)),
+            '*/ads*' => Http::response(['data' => [
+                ['id' => '1', 'creative' => $this->creative($adType)],
+                ['id' => '2', 'creative' => $this->creative($adType)],
+            ]]),
+        ]);
 
         $project = Project::factory()->create();
         $this->connect($project, $settings);
@@ -71,12 +88,27 @@ class MetaActionMappingTest extends TestCase
         $this->assertSame(0.0, $this->recorded($project, 'ad_follows'));
     }
 
-    public function test_a_pixel_lead_is_counted_as_a_kickstarter_follow(): void
+    public function test_a_pixel_lead_on_a_kickstarter_ad_is_a_follow(): void
     {
-        $project = $this->sync([['action_type' => 'offsite_conversion.fb_pixel_lead', 'value' => '14']]);
+        $project = $this->sync(
+            [['action_type' => 'offsite_conversion.fb_pixel_lead', 'value' => '14']],
+            'kickstarter',
+        );
 
         $this->assertSame(14.0, $this->recorded($project, 'ad_follows'));
         $this->assertSame(0.0, $this->recorded($project, 'ad_leads'), 'a follow is not an owned contact');
+    }
+
+    public function test_a_pixel_lead_on_a_landing_page_ad_is_an_owned_signup(): void
+    {
+        // Same Meta event, different destination, different meaning.
+        $project = $this->sync(
+            [['action_type' => 'offsite_conversion.fb_pixel_lead', 'value' => '11']],
+            'landing_page',
+        );
+
+        $this->assertSame(11.0, $this->recorded($project, 'ad_leads'));
+        $this->assertSame(0.0, $this->recorded($project, 'ad_follows'));
     }
 
     public function test_the_two_are_separated_when_both_arrive(): void
@@ -87,7 +119,7 @@ class MetaActionMappingTest extends TestCase
             ['action_type' => 'lead', 'value' => '20'],
             ['action_type' => 'offsite_conversion.fb_pixel_lead', 'value' => '14'],
             ['action_type' => 'leadgen_grouped', 'value' => '6'],
-        ]);
+        ], 'kickstarter');
 
         $this->assertSame(6.0, $this->recorded($project, 'ad_leads'));
         $this->assertSame(14.0, $this->recorded($project, 'ad_follows'));
@@ -129,6 +161,7 @@ class MetaActionMappingTest extends TestCase
         // Stale configuration from an earlier build must not change results.
         $project = $this->sync(
             [['action_type' => 'offsite_conversion.fb_pixel_lead', 'value' => '14']],
+            'kickstarter',
             ['lead_actions' => ['offsite_conversion.fb_pixel_lead'], 'follow_actions' => []],
         );
 
@@ -153,7 +186,9 @@ class MetaActionMappingTest extends TestCase
                     'clicks' => '20',
                     'actions' => [['action_type' => 'leadgen_grouped', 'value' => '4']],
                 ]],
-            ]);
+            ])
+            // Third call is the creative lookup that classifies each ad.
+            ->push(['data' => []]);
 
         $project = Project::factory()->create();
         $this->connect($project);

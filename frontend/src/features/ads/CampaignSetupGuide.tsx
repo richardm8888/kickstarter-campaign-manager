@@ -84,7 +84,7 @@ function Campaign({ number, title, children }: {
   return (
     <div className="rounded-lg border border-border p-4">
       <p className="text-sm font-semibold">
-        Campaign {number} — {title}
+        Ad {number} — {title}
       </p>
       <div className="mt-2 flex flex-col gap-2 text-sm text-muted-foreground">{children}</div>
     </div>
@@ -92,9 +92,9 @@ function Campaign({ number, title, children }: {
 }
 
 /**
- * The prescribed pre-launch ad setup. There is one right way to run this
- * — two campaigns, two events — and the platform reads the results on that
- * basis rather than adapting to arbitrary configurations.
+ * The prescribed pre-launch ad setup: three ads, two events. The platform
+ * reads results on that basis rather than adapting to arbitrary
+ * configurations, so the guide is the contract.
  */
 export function CampaignSetupGuide({ setup }: { setup: EventSetup }) {
   const allDetected = setup.events.every((e) => e.detected)
@@ -119,7 +119,7 @@ export function CampaignSetupGuide({ setup }: { setup: EventSetup }) {
           <CardDescription className="mt-1">
             {allDetected
               ? 'Both events are arriving — ads are being judged on signups and follows.'
-              : 'Two campaigns, two events. Follow this and every number on this page becomes reliable.'}
+              : 'Three ads, two events. Follow this and every number on this page becomes reliable.'}
           </CardDescription>
         </button>
       </CardHeader>
@@ -158,28 +158,43 @@ export function CampaignSetupGuide({ setup }: { setup: EventSetup }) {
         {open && (
           <div className="flex flex-col gap-5 border-t border-border pt-4">
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium">Run exactly two campaigns</p>
+              <p className="text-sm font-medium">Run these three ads</p>
+              <p className="text-sm text-muted-foreground">
+                Each buys something different, and each is judged on its own terms below. Start with the
+                instant form — it is the cheapest — then add the others once it is working.
+              </p>
 
-              <Campaign number={1} title="Collect email addresses">
+              <Campaign number={1} title="Instant form">
                 <p>
                   Objective <strong>Leads</strong>, conversion location <strong>Instant forms</strong>. Ask for
                   the email only — every extra question costs you signups.
                 </p>
                 <p>
-                  These are contacts <em>you</em> own and can email whenever you like, which is why they are
-                  what your ads are scored on.
+                  The cheapest way to collect addresses, because nobody has to leave Facebook. We pull the
+                  submissions out automatically and add them to your list.
                 </p>
               </Campaign>
 
-              <Campaign number={2} title="Build Kickstarter followers">
+              <Campaign number={2} title="Your landing page">
+                <p>
+                  Objective <strong>Leads</strong> or <strong>Sales</strong>, destination your own page, with
+                  the pixel and a <strong>Lead</strong> event on the signup form.
+                </p>
+                <p>
+                  More friction than a form, but you control the pitch — and you can offer the £1 VIP upgrade,
+                  which a Facebook form cannot do.
+                </p>
+              </Campaign>
+
+              <Campaign number={3} title="Your Kickstarter page">
                 <p>
                   Objective <strong>Traffic</strong>, destination your Kickstarter pre-launch page. Add your
                   pixel ID in Kickstarter's project settings so the page reports back.
                 </p>
                 <p>
-                  A "Notify me on launch" tap fires <strong>Lead</strong> on that page. Kickstarter alerts
-                  followers the moment you go live, so they convert far better than a cold email — but
-                  Kickstarter owns the relationship, which is why we count them separately.
+                  A "Notify me on launch" tap fires <strong>Lead</strong> there. Kickstarter alerts followers
+                  the moment you go live, so they convert better than a cold email — but Kickstarter owns the
+                  relationship, so we count follows separately from addresses you own.
                 </p>
               </Campaign>
 

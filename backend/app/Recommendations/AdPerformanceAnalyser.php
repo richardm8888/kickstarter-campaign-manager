@@ -75,9 +75,35 @@ class AdPerformanceAnalyser
 
         $trafficAds = array_filter($ads, fn (array $a) => $a['objective'] === AdObjective::Traffic->value);
 
+        $byType = [];
+
+        foreach (AdType::cases() as $type) {
+            $ofType = array_filter($ads, fn (array $a) => $a['ad_type'] === $type->value);
+
+            if ($ofType === []) {
+                continue;
+            }
+
+            $spend = array_sum(array_column($ofType, 'spend'));
+            $conversions = $type === AdType::Kickstarter
+                ? array_sum(array_column($ofType, 'follows'))
+                : array_sum(array_column($ofType, 'leads'));
+
+            $byType[] = [
+                'type' => $type->value,
+                'label' => $type->label(),
+                'conversion_label' => $type->conversionLabel(),
+                'ads' => count($ofType),
+                'spend' => round($spend, 2),
+                'conversions' => (int) $conversions,
+                'cost_per_conversion' => $conversions > 0 ? round($spend / $conversions, 2) : null,
+            ];
+        }
+
         return [
             'days' => $days,
             'has_lead_data' => $hasLeadData,
+            'by_type' => $byType,
             'traffic_objective_count' => count($trafficAds),
             'traffic_objective_spend' => round(array_sum(array_column($trafficAds, 'spend')), 2),
             'benchmark' => [
@@ -122,6 +148,8 @@ class AdPerformanceAnalyser
             $field = self::AD_METRICS[$snapshot->metric];
             $date = $snapshot->recorded_at->toDateString();
 
+            $adType = AdType::tryFrom($snapshot->dimensions['ad_type'] ?? '') ?? AdType::Unknown;
+
             $objective = AdObjective::classify(
                 $snapshot->dimensions['optimization_goal'] ?? null,
                 $snapshot->dimensions['objective'] ?? null,
@@ -134,6 +162,8 @@ class AdPerformanceAnalyser
                 'campaign_name' => $snapshot->dimensions['campaign_name'] ?? null,
                 'objective' => $objective->value,
                 'objective_label' => $objective->label(),
+                'ad_type' => $adType->value,
+                'ad_type_label' => $adType->label(),
             ];
 
             // Last write per (ad, metric, day) wins.

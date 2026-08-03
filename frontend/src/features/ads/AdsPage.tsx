@@ -42,8 +42,8 @@ function AdCard({ ad, hasLeadData }: { ad: Ad; hasLeadData: boolean }) {
           <div className="min-w-0">
             <p className="font-medium">{ad.ad_name}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
+              {ad.ad_type !== 'unknown' && `${ad.ad_type_label} · `}
               {[ad.campaign_name, ad.adset_name].filter(Boolean).join(' · ') || 'No campaign name'}
-              {ad.objective !== 'other' && ` · ${ad.objective_label.toLowerCase()}`}
             </p>
           </div>
           <Badge className={cn('border-transparent', style.badge)}>{ad.verdict_label}</Badge>
@@ -167,6 +167,27 @@ export function AdsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {data.by_type.length > 1 && (
+            <div className="mb-4 grid gap-3 sm:grid-cols-3">
+              {data.by_type.map((summary) => (
+                <Card key={summary.type}>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">{summary.label}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">
+                      {summary.cost_per_conversion !== null
+                        ? money(Math.round(summary.cost_per_conversion * 100))
+                        : '—'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      per {summary.conversion_label.replace(/s$/, '')} ·{' '}
+                      {number(summary.conversions)} from {money(Math.round(summary.spend * 100))}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {data.traffic_objective_count > 0 && (
             <div className="mb-4 rounded-lg border-l-2 border-l-[color:var(--status-warning)] bg-muted/40 p-4">

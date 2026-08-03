@@ -38,6 +38,8 @@ export interface Ad {
   cost_per_follow: number | null
   objective: 'signups' | 'traffic' | 'other'
   objective_label: string
+  ad_type: 'kickstarter' | 'landing_page' | 'instant_form' | 'unknown'
+  ad_type_label: string
   lead_rate: number | null
   verdict: AdVerdict
   verdict_label: string
@@ -45,9 +47,20 @@ export interface Ad {
   action: string
 }
 
+export interface AdTypeSummary {
+  type: string
+  label: string
+  conversion_label: string
+  ads: number
+  spend: number
+  conversions: number
+  cost_per_conversion: number | null
+}
+
 export interface AdReport {
   days: number
   has_lead_data: boolean
+  by_type: AdTypeSummary[]
   traffic_objective_count: number
   traffic_objective_spend: number
   benchmark: {

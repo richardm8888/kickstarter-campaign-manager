@@ -3,6 +3,7 @@
 namespace App\Integrations\Providers;
 
 use App\Integrations\BaseIntegration;
+use App\Recommendations\AdType;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -24,11 +25,11 @@ class MetaIntegration extends BaseIntegration
     ];
 
     /**
-     * Kickstarter follows: a pixel Lead fired on the pre-launch page when
-     * someone taps "Notify me on launch". Valuable, but Kickstarter owns
-     * the relationship, so it is never counted as a signup.
+     * A pixel Lead. What it means depends on where the ad sent people: a
+     * follow on a Kickstarter page, an owned email address on the
+     * creator's own page. See AdType.
      */
-    public const FOLLOW_ACTIONS = [
+    public const PIXEL_LEAD_ACTIONS = [
         'offsite_conversion.fb_pixel_lead',
         'offsite_conversion.fb_pixel_complete_registration',
     ];
@@ -124,27 +125,37 @@ class MetaIntegration extends BaseIntegration
         }
 
 
+        $adTypes = $this->adTypes($credentials);
+
         $rows = [];
         $accountTotals = [];
 
         foreach ($days as $row) {
             $date = $row['date_stop'] ?? now()->toDateString();
+            $adId = (string) ($row['ad_id'] ?? 'unknown');
+            $adType = $adTypes[$adId] ?? AdType::Unknown;
 
             $spend = (float) ($row['spend'] ?? 0);
             $impressions = (float) ($row['impressions'] ?? 0);
             $clicks = (float) ($row['clicks'] ?? 0);
-            $leads = $this->countActions($row['actions'] ?? [], self::LEAD_ACTIONS);
+            $formLeads = $this->countActions($row['actions'] ?? [], self::LEAD_ACTIONS);
+            $pixelLeads = $this->countActions($row['actions'] ?? [], self::PIXEL_LEAD_ACTIONS);
             $viewContent = $this->countActions($row['actions'] ?? [], self::VIEW_CONTENT_ACTIONS);
             $landingPageViews = $this->countActions($row['actions'] ?? [], self::LANDING_PAGE_VIEW_ACTIONS);
-            $follows = $this->countActions($row['actions'] ?? [], self::FOLLOW_ACTIONS);
+
+            // The same pixel event means a follow on a Kickstarter page and
+            // an owned contact on the creator's own page.
+            $follows = $adType->pixelLeadIsFollow() ? $pixelLeads : 0.0;
+            $leads = $adType->pixelLeadIsFollow() ? $formLeads : max($formLeads, $pixelLeads);
 
             $dimensions = [
-                'ad_id' => (string) ($row['ad_id'] ?? 'unknown'),
+                'ad_id' => $adId,
                 'ad_name' => $row['ad_name'] ?? 'Unnamed ad',
                 'adset_name' => $row['adset_name'] ?? null,
                 'campaign_name' => $row['campaign_name'] ?? null,
                 'objective' => $row['objective'] ?? null,
                 'optimization_goal' => $row['optimization_goal'] ?? null,
+                'ad_type' => $adType->value,
             ];
 
             foreach ([
@@ -208,6 +219,46 @@ class MetaIntegration extends BaseIntegration
         }
 
         return max($counts);
+    }
+
+    /**
+     * Classifies every ad by where it sends people, which decides how its
+     * conversions are read.
+     *
+     * @return array<string, AdType>
+     */
+    private function adTypes(array $credentials): array
+    {
+        $accountId = ltrim($credentials['ad_account_id'], 'act_');
+        $version = config('services.meta.api_version');
+
+        try {
+            $ads = $this->paginate("https://graph.facebook.com/{$version}/act_{$accountId}/ads", [
+                'access_token' => $credentials['access_token'],
+                'fields' => 'id,creative{object_story_spec,asset_feed_spec,object_type}',
+                'limit' => 200,
+            ]);
+        } catch (RequestException $e) {
+            // Without creatives every ad is Unknown, which still reports —
+            // it just cannot tell a follow from a signup.
+            Log::warning('Could not read Meta creatives; ads will be unclassified.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $types = [];
+
+        foreach ($ads as $ad) {
+            if (! isset($ad['id'])) {
+                continue;
+            }
+
+            $types[(string) $ad['id']] = AdType::fromCreative($ad['creative'] ?? []);
+        }
+
+        return $types;
     }
 
     /**

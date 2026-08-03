@@ -263,7 +263,16 @@ class MetaLeadImportTest extends TestCase
 
     public function test_kickstarter_follows_are_counted_apart_from_form_signups(): void
     {
-        Http::fake(['graph.facebook.com/*' => Http::response(['data' => [[
+        Http::fake([
+            // The ad points at a Kickstarter page, which is what makes its
+            // pixel Lead a follow rather than an owned contact.
+            '*/act_123/ads*' => Http::response(['data' => [[
+                'id' => '1',
+                'creative' => ['object_story_spec' => ['link_data' => [
+                    'link' => 'https://www.kickstarter.com/projects/x/y',
+                ]]],
+            ]]]),
+            '*/insights*' => Http::response(['data' => [[
             'ad_id' => '1',
             'ad_name' => 'Kickstarter Preview',
             'date_stop' => now()->subDay()->toDateString(),
@@ -275,14 +284,11 @@ class MetaLeadImportTest extends TestCase
                 ['action_type' => 'leadgen_grouped', 'value' => '6'],
                 ['action_type' => 'lead', 'value' => '20'],
             ],
-        ]]])]);
+        ]]]),
+        ]);
 
         $project = Project::factory()->create();
-        // Pixel "Lead" on the Kickstarter page means a follow, not a contact.
-        $this->connectMeta($project, [
-            'follow_actions' => ['offsite_conversion.fb_pixel_lead'],
-            'lead_actions' => ['leadgen_grouped', 'onsite_conversion.lead_grouped'],
-        ]);
+        $this->connectMeta($project);
 
         app(RunIntegrationSync::class)->handle($project, 'meta');
 
