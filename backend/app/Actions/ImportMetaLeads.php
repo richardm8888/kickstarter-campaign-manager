@@ -24,8 +24,12 @@ class ImportMetaLeads
         private readonly MetricRecorder $metrics,
     ) {}
 
-    /** @return array{imported: int, forwarded: int, skipped: int} */
-    public function handle(Project $project, int $days = 30): array
+    /**
+     * @param  bool  $resync  Forward contacts again even if already sent,
+     *                        used after adding fields in the email provider.
+     * @return array{found: int, imported: int, forwarded: int, already_forwarded: int, skipped: int}
+     */
+    public function handle(Project $project, int $days = 30, bool $resync = false): array
     {
         $meta = $this->integrations->for($project, 'meta');
 
@@ -49,6 +53,7 @@ class ImportMetaLeads
 
         $imported = 0;
         $forwarded = 0;
+        $alreadyForwarded = 0;
         $skipped = 0;
 
         foreach ($leads as $lead) {
@@ -81,23 +86,27 @@ class ImportMetaLeads
             }
 
             // Forward anyone the email provider has not seen yet.
-            if ($canForward && $subscriber->synced_to_email_at === null) {
-                if ($mailer->addSubscriber($email, $subscriber->fields ?? [])) {
+            if ($canForward) {
+                if ($subscriber->synced_to_email_at !== null && ! $resync) {
+                    $alreadyForwarded++;
+                } elseif ($mailer->addSubscriber($email, $subscriber->fields ?? [])) {
                     $subscriber->forceFill(['synced_to_email_at' => now()])->save();
                     $forwarded++;
                 }
             }
         }
 
-        // Fall through to the log summary below.
-        Log::info('Imported Meta form leads', [
-            'project_id' => $project->id,
+        $summary = [
+            'found' => count($leads),
             'imported' => $imported,
             'forwarded' => $forwarded,
+            'already_forwarded' => $alreadyForwarded,
             'skipped' => $skipped,
-        ]);
+        ];
 
-        return ['imported' => $imported, 'forwarded' => $forwarded, 'skipped' => $skipped];
+        Log::info('Imported Meta form leads', ['project_id' => $project->id] + $summary);
+
+        return $summary;
     }
 
     /**

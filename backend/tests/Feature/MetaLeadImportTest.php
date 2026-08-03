@@ -117,6 +117,58 @@ class MetaLeadImportTest extends TestCase
         $second = app(ImportMetaLeads::class)->handle($project);
 
         $this->assertSame(0, $second['forwarded']);
+        // A second run still finds the lead — it just has nothing new to send.
+        $this->assertSame(1, $second['found']);
+        $this->assertSame(1, $second['already_forwarded']);
+    }
+
+    public function test_resync_pushes_contacts_again(): void
+    {
+        $this->fakeLeads([$this->lead('l1', 'backer@example.com')]);
+
+        $project = Project::factory()->create();
+        $this->connectMeta($project);
+        Integration::factory()->for($project)->create([
+            'provider' => 'mailerlite',
+            'credentials' => ['api_key' => 'ml-key'],
+        ]);
+
+        app(ImportMetaLeads::class)->handle($project);
+        $resync = app(ImportMetaLeads::class)->handle($project, resync: true);
+
+        $this->assertSame(1, $resync['forwarded']);
+        $this->assertSame(0, $resync['imported'], 'resync must not duplicate the subscriber');
+    }
+
+    public function test_the_command_explains_when_there_is_nothing_new_to_send(): void
+    {
+        $this->fakeLeads([$this->lead('l1', 'backer@example.com')]);
+
+        $project = Project::factory()->create();
+        $this->connectMeta($project);
+        Integration::factory()->for($project)->create([
+            'provider' => 'mailerlite',
+            'credentials' => ['api_key' => 'ml-key'],
+        ]);
+
+        $this->artisan('meta:import-leads')->assertSuccessful();
+
+        $this->artisan('meta:import-leads')
+            ->expectsOutputToContain('1 already forwarded')
+            ->expectsOutputToContain('--resync')
+            ->assertSuccessful();
+    }
+
+    public function test_the_command_explains_an_empty_result(): void
+    {
+        $this->fakeLeads([]);
+
+        $project = Project::factory()->create();
+        $this->connectMeta($project);
+
+        $this->artisan('meta:import-leads')
+            ->expectsOutputToContain('leads_retrieval')
+            ->assertSuccessful();
     }
 
     public function test_leads_without_an_email_are_skipped_not_fatal(): void
@@ -156,7 +208,7 @@ class MetaLeadImportTest extends TestCase
         $this->connectMeta($project);
 
         $this->artisan('meta:import-leads')
-            ->expectsOutputToContain('1 imported')
+            ->expectsOutputToContain('1 leads found in Meta — 1 new')
             ->assertSuccessful();
     }
 
