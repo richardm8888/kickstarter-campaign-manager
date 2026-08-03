@@ -36,6 +36,7 @@ class AdPerformanceAnalyser
         'ad_clicks' => 'clicks',
         'ad_leads' => 'leads',
         'ad_view_content' => 'view_content',
+        'ad_landing_page_views' => 'landing_page_views',
     ];
 
     public function __construct(private readonly ForecastEngine $forecasts) {}
@@ -132,6 +133,7 @@ class AdPerformanceAnalyser
                 'clicks' => (int) $totals['clicks'],
                 'leads' => (int) $totals['leads'],
                 'view_content' => (int) $totals['view_content'],
+                'landing_page_views' => (int) $totals['landing_page_views'],
                 'ctr' => $totals['impressions'] > 0
                     ? round($totals['clicks'] / $totals['impressions'] * 100, 2)
                     : null,

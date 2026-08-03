@@ -54,6 +54,7 @@ export interface AdReport {
 export interface EventSetup {
   meta_connected: boolean
   pixel_detected: boolean | null
+  diagnostics: Array<{ severity: 'info' | 'warning'; title: string; body: string }>
   events: Array<{
     event: string
     label: string

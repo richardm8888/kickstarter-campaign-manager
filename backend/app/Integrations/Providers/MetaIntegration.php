@@ -25,8 +25,15 @@ class MetaIntegration extends BaseIntegration
     public const VIEW_CONTENT_ACTIONS = [
         'view_content',
         'offsite_conversion.fb_pixel_view_content',
-        'landing_page_view',
+        'onsite_web_view_content',
     ];
+
+    /**
+     * Meta's own count of clicks that actually loaded the page. Kept apart
+     * from ViewContent: this one needs no pixel event, so comparing the two
+     * reveals whether the creator's ViewContent tag is firing everywhere.
+     */
+    public const LANDING_PAGE_VIEW_ACTIONS = ['landing_page_view'];
 
     public function provider(): string
     {
@@ -96,6 +103,7 @@ class MetaIntegration extends BaseIntegration
             $clicks = (float) ($row['clicks'] ?? 0);
             $leads = $this->countActions($row['actions'] ?? [], $leadActions);
             $viewContent = $this->countActions($row['actions'] ?? [], $viewContentActions);
+            $landingPageViews = $this->countActions($row['actions'] ?? [], self::LANDING_PAGE_VIEW_ACTIONS);
 
             $dimensions = [
                 'ad_id' => (string) ($row['ad_id'] ?? 'unknown'),
@@ -110,6 +118,7 @@ class MetaIntegration extends BaseIntegration
                 'ad_clicks' => $clicks,
                 'ad_leads' => $leads,
                 'ad_view_content' => $viewContent,
+                'ad_landing_page_views' => $landingPageViews,
             ] as $metric => $value) {
                 $rows[] = [
                     'metric' => $metric,

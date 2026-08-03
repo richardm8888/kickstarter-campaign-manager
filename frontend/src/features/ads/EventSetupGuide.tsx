@@ -120,6 +120,21 @@ export function EventSetupGuide({ setup, projectId }: { setup: EventSetup; proje
         {/* Only worth asking about mappings once Meta is actually connected. */}
         <ActionTypeMapper projectId={projectId} enabled={setup.meta_connected && !allDetected} />
 
+        {setup.diagnostics.map((finding) => (
+          <div
+            key={finding.title}
+            className={cn(
+              'rounded-lg border-l-2 bg-muted/40 p-3',
+              finding.severity === 'warning'
+                ? 'border-l-[color:var(--status-warning)]'
+                : 'border-l-[color:var(--viz-series-1)]',
+            )}
+          >
+            <p className="text-sm font-medium">{finding.title}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{finding.body}</p>
+          </div>
+        ))}
+
         <ul className="flex flex-col gap-2">
           {setup.events.map((event) => (
             <li key={event.event} className="flex flex-wrap items-baseline justify-between gap-2">

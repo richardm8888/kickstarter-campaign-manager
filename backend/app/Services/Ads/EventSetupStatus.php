@@ -22,6 +22,8 @@ class EventSetupStatus
 
         $viewContent = $this->totals($project, 'ad_view_content', $since);
         $lead = $this->totals($project, 'ad_leads', $since);
+        $landingPageViews = $this->totals($project, 'ad_landing_page_views', $since);
+        $clicks = $this->totals($project, 'ad_clicks', $since);
 
         // The pixel itself may be detectable from the creator's own page.
         $analysis = $project->landingPageAnalyses()->latest()->first();
@@ -30,6 +32,7 @@ class EventSetupStatus
         return [
             'meta_connected' => $connected,
             'pixel_detected' => $pixelCheck['passed'] ?? null,
+            'diagnostics' => $this->diagnose($project, $viewContent, $lead, $landingPageViews, $clicks, $days),
             'events' => [
                 [
                     'event' => 'ViewContent',
@@ -49,6 +52,75 @@ class EventSetupStatus
                 ],
             ],
         ];
+    }
+
+    /**
+     * Meta counts a "landing page view" itself, without needing a pixel
+     * event, so it is the yardstick for whether the creator's own
+     * ViewContent and Lead tags are firing on every visit.
+     *
+     * @return list<array{severity: string, title: string, body: string}>
+     */
+    private function diagnose(
+        Project $project,
+        array $viewContent,
+        array $lead,
+        array $landingPageViews,
+        array $clicks,
+        int $days,
+    ): array {
+        $findings = [];
+        $pageViews = $landingPageViews['count'];
+
+        if ($pageViews > 20 && $viewContent['count'] < $pageViews * 0.5) {
+            $percent = (int) round($viewContent['count'] / $pageViews * 100);
+
+            $findings[] = [
+                'severity' => 'warning',
+                'title' => 'ViewContent is firing on only '.$percent.'% of visits',
+                'body' => sprintf(
+                    'Meta recorded %d landing page views from your ads but only %d ViewContent events. '
+                    .'The tag is probably missing from the page people actually land on, or running before the pixel loads.',
+                    $pageViews,
+                    $viewContent['count'],
+                ),
+            ];
+        }
+
+        if ($clicks['count'] > 50 && $pageViews > 0 && $pageViews < $clicks['count'] * 0.7) {
+            $lost = (int) round((1 - $pageViews / $clicks['count']) * 100);
+
+            $findings[] = [
+                'severity' => 'warning',
+                'title' => $lost.'% of ad clicks never load your page',
+                'body' => sprintf(
+                    '%d clicks produced only %d page views. That gap is usually a slow page — you are paying for those clicks either way.',
+                    $clicks['count'],
+                    $pageViews,
+                ),
+            ];
+        }
+
+        // Signups we recorded ourselves that Meta never attributed to an ad.
+        $ownSignups = $project->subscribers()
+            ->where('created_at', '>=', now()->subDays($days))
+            ->count();
+
+        if ($ownSignups > 0 && $lead['count'] < $ownSignups * 0.6) {
+            $findings[] = [
+                'severity' => 'info',
+                'title' => 'Meta sees fewer signups than you actually got',
+                'body' => sprintf(
+                    'You recorded %d signups in %d days; Meta attributed %d to ads. Some of the gap is organic traffic, '
+                    .'but browser tracking also loses signups to ad blockers and iOS privacy settings, so ad costs here may look worse than they are.',
+                    $ownSignups,
+                    $days,
+                    $lead['count'],
+                ),
+            ];
+        }
+
+        return $findings;
     }
 
     /** @return array{count: int, last_seen: ?string} */
