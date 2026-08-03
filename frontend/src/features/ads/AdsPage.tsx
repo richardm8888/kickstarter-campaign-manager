@@ -43,6 +43,7 @@ function AdCard({ ad, hasLeadData }: { ad: Ad; hasLeadData: boolean }) {
             <p className="font-medium">{ad.ad_name}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {[ad.campaign_name, ad.adset_name].filter(Boolean).join(' · ') || 'No campaign name'}
+              {ad.objective !== 'other' && ` · ${ad.objective_label.toLowerCase()}`}
             </p>
           </div>
           <Badge className={cn('border-transparent', style.badge)}>{ad.verdict_label}</Badge>
@@ -57,12 +58,23 @@ function AdCard({ ad, hasLeadData }: { ad: Ad; hasLeadData: boolean }) {
           <Metric label="Spend" value={money(Math.round(ad.spend * 100))} />
           <Metric label="Clicks" value={number(ad.clicks)} />
           <Metric label="CPC" value={ad.cpc !== null ? money(Math.round(ad.cpc * 100)) : '—'} />
-          {hasLeadData && (
+          {ad.objective === 'traffic' ? (
             <>
+              <Metric label="Page views" value={number(ad.landing_page_views)} />
+              <Metric
+                label="Cost/page view"
+                value={ad.cost_per_page_view !== null ? money(Math.round(ad.cost_per_page_view * 100)) : '—'}
+              />
               <Metric label="Signups" value={number(ad.leads)} />
-              <Metric label="Cost/signup" value={ad.cpl !== null ? money(Math.round(ad.cpl * 100)) : '—'} />
-              <Metric label="Click→signup" value={ad.lead_rate !== null ? percent(ad.lead_rate) : '—'} />
             </>
+          ) : (
+            hasLeadData && (
+              <>
+                <Metric label="Signups" value={number(ad.leads)} />
+                <Metric label="Cost/signup" value={ad.cpl !== null ? money(Math.round(ad.cpl * 100)) : '—'} />
+                <Metric label="Click→signup" value={ad.lead_rate !== null ? percent(ad.lead_rate) : '—'} />
+              </>
+            )
           )}
         </dl>
       </CardContent>
@@ -146,6 +158,21 @@ export function AdsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {data.traffic_objective_count > 0 && (
+            <div className="mb-4 rounded-lg border-l-2 border-l-[color:var(--status-warning)] bg-muted/40 p-4">
+              <p className="text-sm font-medium">
+                {money(Math.round(data.traffic_objective_spend * 100))} is going to ads optimised for page
+                views, not signups
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {data.traffic_objective_count === 1 ? 'One ad is' : `${data.traffic_objective_count} ads are`}{' '}
+                set to buy landing page views. Meta will find the cheapest clicks it can, whether or not those
+                people ever join your list. Rebuild them as a Leads or Sales campaign so Meta optimises for
+                signups.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             {data.ads.map((ad) => (

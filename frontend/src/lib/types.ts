@@ -32,6 +32,10 @@ export interface Ad {
   ctr: number | null
   cpc: number | null
   cpl: number | null
+  cost_per_page_view: number | null
+  landing_page_views: number
+  objective: 'signups' | 'traffic' | 'other'
+  objective_label: string
   lead_rate: number | null
   verdict: AdVerdict
   verdict_label: string
@@ -42,6 +46,8 @@ export interface Ad {
 export interface AdReport {
   days: number
   has_lead_data: boolean
+  traffic_objective_count: number
+  traffic_objective_spend: number
   benchmark: {
     total_spend: number
     total_leads: number

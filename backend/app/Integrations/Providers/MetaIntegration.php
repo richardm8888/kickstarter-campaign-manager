@@ -3,7 +3,9 @@
 namespace App\Integrations\Providers;
 
 use App\Integrations\BaseIntegration;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class MetaIntegration extends BaseIntegration
 {
@@ -77,17 +79,32 @@ class MetaIntegration extends BaseIntegration
         $accountId = ltrim($credentials['ad_account_id'], 'act_');
         $version = config('services.meta.api_version');
 
-        $days = $this->paginate(
-            "https://graph.facebook.com/{$version}/act_{$accountId}/insights",
-            [
-                'access_token' => $credentials['access_token'],
-                'level' => 'ad',
-                'date_preset' => 'last_14d',
-                'time_increment' => 1,
-                'limit' => 500,
-                'fields' => 'ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,actions',
-            ],
-        );
+        $url = "https://graph.facebook.com/{$version}/act_{$accountId}/insights";
+
+        $query = [
+            'access_token' => $credentials['access_token'],
+            'level' => 'ad',
+            'date_preset' => 'last_14d',
+            'time_increment' => 1,
+            'limit' => 500,
+        ];
+
+        $baseFields = 'ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,actions';
+
+        try {
+            // The objective fields decide how an ad is judged, but field
+            // availability varies by API version, so fall back rather than
+            // lose the whole sync over them.
+            $days = $this->paginate($url, $query + [
+                'fields' => $baseFields.',objective,optimization_goal',
+            ]);
+        } catch (RequestException $e) {
+            Log::info('Meta rejected the objective fields; syncing without them.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            $days = $this->paginate($url, $query + ['fields' => $baseFields]);
+        }
 
         $leadActions = $this->actionTypesFor('lead');
         $viewContentActions = $this->actionTypesFor('view_content');
@@ -110,6 +127,8 @@ class MetaIntegration extends BaseIntegration
                 'ad_name' => $row['ad_name'] ?? 'Unnamed ad',
                 'adset_name' => $row['adset_name'] ?? null,
                 'campaign_name' => $row['campaign_name'] ?? null,
+                'objective' => $row['objective'] ?? null,
+                'optimization_goal' => $row['optimization_goal'] ?? null,
             ];
 
             foreach ([

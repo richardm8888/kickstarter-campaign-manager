@@ -6,6 +6,8 @@ use App\Forecasting\ForecastEngine;
 use App\Models\Project;
 use Illuminate\Support\Collection;
 
+// AdObjective and AdVerdict live in this namespace.
+
 /**
  * Ranks each Meta ad and says what to do with it.
  *
@@ -63,9 +65,13 @@ class AdPerformanceAnalyser
             return $order !== 0 ? $order : $b['spend'] <=> $a['spend'];
         });
 
+        $trafficAds = array_filter($ads, fn (array $a) => $a['objective'] === AdObjective::Traffic->value);
+
         return [
             'days' => $days,
             'has_lead_data' => $hasLeadData,
+            'traffic_objective_count' => count($trafficAds),
+            'traffic_objective_spend' => round(array_sum(array_column($trafficAds, 'spend')), 2),
             'benchmark' => [
                 'total_spend' => round($totalSpend, 2),
                 'total_leads' => (int) $totalLeads,
@@ -108,11 +114,18 @@ class AdPerformanceAnalyser
             $field = self::AD_METRICS[$snapshot->metric];
             $date = $snapshot->recorded_at->toDateString();
 
+            $objective = AdObjective::classify(
+                $snapshot->dimensions['optimization_goal'] ?? null,
+                $snapshot->dimensions['objective'] ?? null,
+            );
+
             $ads[$adId]['meta'] = [
                 'ad_id' => $adId,
                 'ad_name' => $snapshot->dimensions['ad_name'] ?? 'Unnamed ad',
                 'adset_name' => $snapshot->dimensions['adset_name'] ?? null,
                 'campaign_name' => $snapshot->dimensions['campaign_name'] ?? null,
+                'objective' => $objective->value,
+                'objective_label' => $objective->label(),
             ];
 
             // Last write per (ad, metric, day) wins.
@@ -142,6 +155,9 @@ class AdPerformanceAnalyser
                     : null,
                 'cpl' => $totals['leads'] > 0
                     ? round($totals['spend'] / $totals['leads'], 2)
+                    : null,
+                'cost_per_page_view' => $totals['landing_page_views'] > 0
+                    ? round($totals['spend'] / $totals['landing_page_views'], 2)
                     : null,
                 'lead_rate' => $totals['clicks'] > 0
                     ? round($totals['leads'] / $totals['clicks'] * 100, 1)
@@ -175,6 +191,12 @@ class AdPerformanceAnalyser
                 ),
                 'action' => 'Leave it running until it has spent about '.$this->money(self::MIN_SPEND).'.',
             ];
+        }
+
+        // An ad optimised for traffic was never asked to produce signups,
+        // so judging it on cost per signup would blame the wrong thing.
+        if (($ad['objective'] ?? null) === AdObjective::Traffic->value && $ad['leads'] === 0) {
+            return $this->judgeTrafficAd($ad);
         }
 
         // Spending with nothing to show for it.
@@ -214,14 +236,26 @@ class AdPerformanceAnalyser
 
         $benchmark = $accountCpl ?? $affordableCpl;
 
-        if ($cpl <= $benchmark * 0.75) {
+        // Cheaper than the rest of the account, or comfortably below what a
+        // subscriber is worth — the second matters when it is the only ad,
+        // where being "average" says nothing.
+        $beatsAccount = $cpl <= $benchmark * 0.75;
+        $beatsWorth = $cpl <= $affordableCpl * 0.5;
+
+        if ($beatsAccount || $beatsWorth) {
             return [
                 'verdict' => AdVerdict::Scale,
-                'reason' => sprintf(
-                    'Signups cost %s against an account average of %s — your cheapest source right now.',
-                    $this->money($cpl),
-                    $this->money($benchmark),
-                ),
+                'reason' => $beatsAccount
+                    ? sprintf(
+                        'Signups cost %s against an account average of %s — your cheapest source right now.',
+                        $this->money($cpl),
+                        $this->money($benchmark),
+                    )
+                    : sprintf(
+                        'Signups cost %s, well under the %s a subscriber is worth to you.',
+                        $this->money($cpl),
+                        $this->money($affordableCpl),
+                    ),
                 'action' => 'Raise its budget by 20-30% and check again in a few days.',
             ];
         }
@@ -242,6 +276,25 @@ class AdPerformanceAnalyser
             'verdict' => AdVerdict::Keep,
             'reason' => sprintf('Signups cost %s, in line with the rest of the account.', $this->money($cpl)),
             'action' => 'Leave it as it is and keep an eye on the trend.',
+        ];
+    }
+
+    /**
+     * Traffic-objective ads are buying visits, which is what they were
+     * asked to do. The problem is the instruction, not the creative:
+     * Meta optimises for whoever clicks, not whoever signs up.
+     */
+    private function judgeTrafficAd(array $ad): array
+    {
+        $costPerView = $ad['cost_per_page_view'];
+
+        return [
+            'verdict' => AdVerdict::Fix,
+            'reason' => sprintf(
+                'Optimised for landing page views, not signups%s. Meta is buying the cheapest visits it can find, whether or not they convert.',
+                $costPerView !== null ? sprintf(' — %s per visit', $this->money($costPerView)) : '',
+            ),
+            'action' => 'Duplicate it into a Leads or Sales campaign so Meta optimises for signups instead of clicks.',
         ];
     }
 
