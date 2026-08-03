@@ -135,9 +135,43 @@ Tune the runtime footprint with `PHP_WORKERS` in `.env` (each worker is
 roughly 40–80 MB): use `2` on a 1 GB droplet shared with other apps, `4–8`
 where there's headroom.
 
-To avoid building on the droplet at all, build images elsewhere (locally or
-in CI), push them to a registry, and have the droplet pull ready-made
-images — turning deployment into a download.
+Note that `backend`, `queue` and `scheduler` share one image, so a full
+build is two images (API + frontend), not four. Building them one at a
+time keeps peak memory lower than the default parallel build:
+
+```bash
+docker compose build backend
+docker compose build frontend
+docker compose up -d
+```
+
+### Deploying without building (recommended for 1 GB droplets)
+
+`.github/workflows/publish-images.yml` builds both images on GitHub's
+runners and pushes them to GHCR. The droplet then only downloads them:
+
+1. Let the workflow run (it triggers on push, or run it manually from the
+   repo's *Actions* tab).
+2. Make the two packages public under the repo's *Packages* settings — or,
+   to keep them private, log the droplet in first:
+   `echo <token> | docker login ghcr.io -u <username> --password-stdin`
+   using a token with `read:packages`.
+3. On the droplet, set the prefix in `.env`:
+
+   ```bash
+   IMAGE_PREFIX=ghcr.io/richardm8888/kickstarter-campaign-manager
+   TAG=latest
+   ```
+
+4. Deploy — and for every update afterwards:
+
+   ```bash
+   docker compose pull
+   docker compose up -d --no-build
+   ```
+
+Each release is also tagged with its commit SHA, so `TAG=<sha>` pins or
+rolls back to any previous build.
 
 ## Keeping it running
 

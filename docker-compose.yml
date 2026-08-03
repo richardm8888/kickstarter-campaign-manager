@@ -15,6 +15,10 @@ x-logging: &default-logging
 
 services:
   backend:
+    # backend, queue and scheduler share one image so it is built once,
+    # not three times. IMAGE_PREFIX can point at a registry to pull
+    # prebuilt images instead of building on the host.
+    image: ${IMAGE_PREFIX:-launch-os}-backend:${TAG:-latest}
     build: ./backend
     restart: unless-stopped
     logging: *default-logging
@@ -50,7 +54,7 @@ services:
       retries: 3
 
   queue:
-    build: ./backend
+    image: ${IMAGE_PREFIX:-launch-os}-backend:${TAG:-latest}
     restart: unless-stopped
     logging: *default-logging
     command: php artisan queue:work --tries=3
@@ -61,7 +65,7 @@ services:
         condition: service_healthy
 
   scheduler:
-    build: ./backend
+    image: ${IMAGE_PREFIX:-launch-os}-backend:${TAG:-latest}
     restart: unless-stopped
     logging: *default-logging
     command: php artisan schedule:work
@@ -71,6 +75,7 @@ services:
         condition: service_healthy
 
   frontend:
+    image: ${IMAGE_PREFIX:-launch-os}-frontend:${TAG:-latest}
     build: ./frontend
     restart: unless-stopped
     logging: *default-logging
