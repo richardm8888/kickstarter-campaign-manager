@@ -115,6 +115,30 @@ certificates are automatic.) Finally set
 `APP_URL=https://launch.yourdomain.com` in `.env` and
 `docker compose up -d` again.
 
+## Small droplets and memory
+
+Building the images is far more memory-hungry than running them: `npm ci`
+plus the Vite build can spike past 1 GB, while the running stack (PHP
+server, queue, scheduler, nginx) sits in the low hundreds of MB — less
+still when using a managed database, since no Postgres runs locally.
+
+If a build is killed on a 1 GB droplet, add swap before resizing:
+
+```bash
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+Confirm an out-of-memory kill with `dmesg | grep -i "killed process"`.
+
+Tune the runtime footprint with `PHP_WORKERS` in `.env` (each worker is
+roughly 40–80 MB): use `2` on a 1 GB droplet shared with other apps, `4–8`
+where there's headroom.
+
+To avoid building on the droplet at all, build images elsewhere (locally or
+in CI), push them to a registry, and have the droplet pull ready-made
+images — turning deployment into a download.
+
 ## Keeping it running
 
 Every service sets `restart: unless-stopped`, so containers restart on

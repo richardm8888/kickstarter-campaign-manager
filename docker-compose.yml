@@ -36,6 +36,9 @@ services:
       CACHE_STORE: database
       SESSION_DRIVER: database
       LOG_CHANNEL: stderr
+      # Concurrent PHP request workers. Each is ~40-80 MB of RAM; lower
+      # this on a small droplet, raise it if you have headroom.
+      PHP_CLI_SERVER_WORKERS: ${PHP_WORKERS:-4}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     # Laravel's built-in health endpoint; start_period covers first-boot
     # migrations so a slow start isn't reported as a failure.
