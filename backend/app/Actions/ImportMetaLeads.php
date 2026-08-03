@@ -59,6 +59,7 @@ class ImportMetaLeads
             }
 
             $email = strtolower(trim($lead['email']));
+            $fields = $this->fieldsFor($lead);
 
             $subscriber = $project->subscribers()->firstOrNew(['email' => $email]);
 
@@ -67,6 +68,8 @@ class ImportMetaLeads
             $subscriber->fill([
                 'external_id' => $lead['id'],
                 'source' => 'meta_lead_form',
+                // Keep anything already known, let the newer answers win.
+                'fields' => [...$subscriber->fields ?? [], ...$fields],
             ]);
 
             if ($isNew) {
@@ -79,13 +82,14 @@ class ImportMetaLeads
 
             // Forward anyone the email provider has not seen yet.
             if ($canForward && $subscriber->synced_to_email_at === null) {
-                if ($mailer->addSubscriber($email, array_filter(['name' => $lead['name']]))) {
+                if ($mailer->addSubscriber($email, $subscriber->fields ?? [])) {
                     $subscriber->forceFill(['synced_to_email_at' => now()])->save();
                     $forwarded++;
                 }
             }
         }
 
+        // Fall through to the log summary below.
         Log::info('Imported Meta form leads', [
             'project_id' => $project->id,
             'imported' => $imported,
@@ -94,5 +98,23 @@ class ImportMetaLeads
         ]);
 
         return ['imported' => $imported, 'forwarded' => $forwarded, 'skipped' => $skipped];
+    }
+
+    /**
+     * Everything worth carrying to the email provider: the form's own
+     * answers, plus lead_id and lead_source so a contact can always be
+     * traced back to the ad that produced it. A question the creator asked
+     * always wins over our derived value.
+     */
+    private function fieldsFor(array $lead): array
+    {
+        $derived = array_filter([
+            'lead_id' => $lead['id'] ?? null,
+            'lead_source' => $lead['campaign_name'] ?? $lead['ad_name'] ?? 'Meta Instant Form',
+            'name' => $lead['name'] ?? null,
+        ]);
+
+        // Form answers override the defaults, never the other way round.
+        return [...$derived, ...($lead['fields'] ?? [])];
     }
 }

@@ -28,7 +28,11 @@ class MetaLeadImportTest extends TestCase
     private function fakeLeads(array $leads): void
     {
         Http::fake([
-            '*/act_123/ads*' => Http::response(['data' => [['id' => 'ad-1']]]),
+            '*/act_123/ads*' => Http::response(['data' => [[
+                'id' => 'ad-1',
+                'name' => 'Instant Form - Static Image',
+                'campaign' => ['name' => 'Kickstarter Preview'],
+            ]]]),
             '*/ad-1/leads*' => Http::response(['data' => $leads]),
             'connect.mailerlite.com/*' => Http::response(['data' => ['id' => '1']]),
         ]);
@@ -154,6 +158,55 @@ class MetaLeadImportTest extends TestCase
         $this->artisan('meta:import-leads')
             ->expectsOutputToContain('1 imported')
             ->assertSuccessful();
+    }
+
+    public function test_form_answers_are_carried_through_to_the_email_provider(): void
+    {
+        $this->fakeLeads([[
+            'id' => 'lead-999',
+            'created_time' => now()->subDay()->toIso8601String(),
+            'field_data' => [
+                ['name' => 'email', 'values' => ['backer@example.com']],
+                ['name' => 'full_name', 'values' => ['Sam Smith']],
+                // A custom question on the form, named however the creator likes.
+                ['name' => 'Lead Source', 'values' => ['Facebook Feed']],
+            ],
+        ]]);
+
+        $project = Project::factory()->create();
+        $this->connectMeta($project);
+        Integration::factory()->for($project)->create([
+            'provider' => 'mailerlite',
+            'credentials' => ['api_key' => 'ml-key'],
+        ]);
+
+        app(ImportMetaLeads::class)->handle($project);
+
+        $fields = Subscriber::first()->fields;
+
+        // The form's own answer wins over anything we derive.
+        $this->assertSame('Facebook Feed', $fields['lead_source']);
+        $this->assertSame('lead-999', $fields['lead_id']);
+        $this->assertSame('Sam Smith', $fields['full_name']);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'mailerlite')
+            && $request['fields']['lead_source'] === 'Facebook Feed'
+            && $request['fields']['lead_id'] === 'lead-999');
+    }
+
+    public function test_lead_source_falls_back_to_the_campaign_when_the_form_does_not_ask(): void
+    {
+        $this->fakeLeads([$this->lead('lead-1', 'backer@example.com')]);
+
+        $project = Project::factory()->create();
+        $this->connectMeta($project);
+
+        app(ImportMetaLeads::class)->handle($project);
+
+        $fields = Subscriber::first()->fields;
+
+        $this->assertSame('Kickstarter Preview', $fields['lead_source']);
+        $this->assertSame('lead-1', $fields['lead_id']);
     }
 
     public function test_kickstarter_follows_are_counted_apart_from_form_signups(): void

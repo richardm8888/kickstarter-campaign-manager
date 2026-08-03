@@ -242,6 +242,12 @@ docker compose exec backend php artisan meta:import-leads
 
 The Meta token needs the `leads_retrieval` permission for this.
 
+Every answer the form collected travels with the contact, plus `lead_id`
+(Meta's own id) and `lead_source` (the form's answer if it asks, otherwise
+the campaign name). Question names become snake_case keys — "Lead Source"
+→ `lead_source` — so create matching custom fields in MailerLite
+(*Subscribers → Fields*) or it will ignore them.
+
 **Kickstarter follows vs email signups.** If your ads send people to a
 Kickstarter page, the pixel's `Lead` event means a *follow*, not a contact
 you can email. Map it so the two are never conflated:

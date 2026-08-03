@@ -298,10 +298,12 @@ class MetaIntegration extends BaseIntegration
         $version = config('services.meta.api_version');
         $since = now()->subDays($days)->timestamp;
 
-        // Forms belong to ads, so walk the ads that ran in the window.
+        // Forms belong to ads, so walk the ads that ran in the window. The
+        // ad and campaign names travel with each lead: they are what makes
+        // a "lead source" meaningful once the contact reaches the mailing list.
         $ads = $this->paginate("https://graph.facebook.com/{$version}/act_{$accountId}/ads", [
             'access_token' => $credentials['access_token'],
-            'fields' => 'id',
+            'fields' => 'id,name,campaign{name}',
             'limit' => 200,
         ]);
 
@@ -327,6 +329,10 @@ class MetaIntegration extends BaseIntegration
                     'email' => $fields['email'] ?? null,
                     'name' => $fields['full_name'] ?? $fields['first_name'] ?? null,
                     'created_time' => $row['created_time'] ?? null,
+                    'ad_name' => $ad['name'] ?? null,
+                    'campaign_name' => $ad['campaign']['name'] ?? null,
+                    // Every answer the form collected, including custom questions.
+                    'fields' => $fields,
                 ];
             }
         }
@@ -334,21 +340,30 @@ class MetaIntegration extends BaseIntegration
         return $leads;
     }
 
-    /** Meta returns lead answers as [{name, values: []}]. */
+    /**
+     * Meta returns lead answers as [{name, values: []}]. Question names are
+     * normalised to snake_case keys ("Lead Source" → lead_source) so they
+     * line up with custom field keys in an email provider.
+     */
     private function flattenFieldData(array $fieldData): array
     {
         $fields = [];
 
         foreach ($fieldData as $field) {
-            $name = strtolower((string) ($field['name'] ?? ''));
+            $key = self::fieldKey((string) ($field['name'] ?? ''));
             $value = $field['values'][0] ?? null;
 
-            if ($name !== '' && $value !== null) {
-                $fields[$name] = $value;
+            if ($key !== '' && $value !== null && $value !== '') {
+                $fields[$key] = $value;
             }
         }
 
         return $fields;
+    }
+
+    public static function fieldKey(string $name): string
+    {
+        return trim(preg_replace('/[^a-z0-9]+/', '_', strtolower($name)) ?? '', '_');
     }
 
     /** Follows Meta's cursor pagination so large accounts are not truncated. */
