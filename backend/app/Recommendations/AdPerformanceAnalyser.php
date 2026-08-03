@@ -5,7 +5,7 @@ namespace App\Recommendations;
 use App\Forecasting\BackerRates;
 use App\Forecasting\ForecastEngine;
 use App\Models\Project;
-use Illuminate\Support\Collection;
+use App\Services\Analytics\AdTotals;
 
 // AdObjective and AdVerdict live in this namespace.
 
@@ -34,16 +34,20 @@ class AdPerformanceAnalyser
     private const MIN_LEADS = 3;
 
     private const AD_METRICS = [
-        'ad_spend' => 'spend',
-        'ad_impressions' => 'impressions',
-        'ad_clicks' => 'clicks',
-        'ad_leads' => 'leads',
-        'ad_view_content' => 'view_content',
-        'ad_landing_page_views' => 'landing_page_views',
-        'ad_follows' => 'follows',
+        'ad_spend',
+        'ad_impressions',
+        'ad_clicks',
+        'ad_leads',
+        'ad_view_content',
+        'ad_landing_page_views',
+        'ad_form_views',
+        'ad_follows',
     ];
 
-    public function __construct(private readonly ForecastEngine $forecasts) {}
+    public function __construct(
+        private readonly ForecastEngine $forecasts,
+        private readonly AdTotals $totals,
+    ) {}
 
     public function analyse(Project $project, int $days = 14): array
     {
@@ -117,91 +121,53 @@ class AdPerformanceAnalyser
     }
 
     /**
-     * Collapse the append-only snapshots into one row per ad: repeated
-     * reports of a day are restatements, so the latest wins per day.
+     * One judged row per ad, built on the shared per-ad collapse in
+     * AdTotals so every reader agrees on what an ad spent and produced.
      *
      * @return list<array<string, mixed>>
      */
     private function aggregate(Project $project, int $days): array
     {
-        $snapshots = $project->metricSnapshots()
-            ->where('source', 'meta')
-            ->whereIn('metric', array_keys(self::AD_METRICS))
-            ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
-            ->orderBy('recorded_at')
-            ->orderBy('id')
-            ->get();
+        return array_map(function (array $ad) {
+            $dimensions = $ad['dimensions'];
+            $totals = $ad['totals'];
 
-        $ads = [];
-
-        foreach ($snapshots as $snapshot) {
-            $adId = $snapshot->dimensions['ad_id'] ?? null;
-
-            if ($adId === null) {
-                continue;
-            }
-
-            $field = self::AD_METRICS[$snapshot->metric];
-            $date = $snapshot->recorded_at->toDateString();
-
-            $adType = AdType::tryFrom($snapshot->dimensions['ad_type'] ?? '') ?? AdType::Unknown;
-
+            $adType = AdType::tryFrom($dimensions['ad_type'] ?? '') ?? AdType::Unknown;
             $objective = AdObjective::classify(
-                $snapshot->dimensions['optimization_goal'] ?? null,
-                $snapshot->dimensions['objective'] ?? null,
+                $dimensions['optimization_goal'] ?? null,
+                $dimensions['objective'] ?? null,
             );
 
-            $ads[$adId]['meta'] = [
-                'ad_id' => $adId,
-                'ad_name' => $snapshot->dimensions['ad_name'] ?? 'Unnamed ad',
-                'adset_name' => $snapshot->dimensions['adset_name'] ?? null,
-                'campaign_name' => $snapshot->dimensions['campaign_name'] ?? null,
+            return [
+                'ad_id' => $dimensions['ad_id'],
+                'ad_name' => $dimensions['ad_name'] ?? 'Unnamed ad',
+                'adset_name' => $dimensions['adset_name'] ?? null,
+                'campaign_name' => $dimensions['campaign_name'] ?? null,
                 'objective' => $objective->value,
                 'objective_label' => $objective->label(),
                 'ad_type' => $adType->value,
                 'ad_type_label' => $adType->label(),
+                'spend' => round($totals['ad_spend'], 2),
+                'impressions' => (int) $totals['ad_impressions'],
+                'clicks' => (int) $totals['ad_clicks'],
+                'leads' => (int) $totals['ad_leads'],
+                'view_content' => (int) $totals['ad_view_content'],
+                'landing_page_views' => (int) $totals['ad_landing_page_views'],
+                'form_views' => (int) $totals['ad_form_views'],
+                'follows' => (int) $totals['ad_follows'],
+                'cost_per_follow' => $this->ratio($totals['ad_spend'], $totals['ad_follows']),
+                'ctr' => $this->ratio($totals['ad_clicks'] * 100, $totals['ad_impressions']),
+                'cpc' => $this->ratio($totals['ad_spend'], $totals['ad_clicks']),
+                'cpl' => $this->ratio($totals['ad_spend'], $totals['ad_leads']),
+                'cost_per_page_view' => $this->ratio($totals['ad_spend'], $totals['ad_landing_page_views']),
+                'lead_rate' => $this->ratio($totals['ad_leads'] * 100, $totals['ad_clicks'], 1),
             ];
+        }, $this->totals->perAd($project, self::AD_METRICS, $days));
+    }
 
-            // Last write per (ad, metric, day) wins.
-            $ads[$adId]['days'][$date][$field] = (float) $snapshot->value;
-        }
-
-        return array_values(array_map(function (array $ad) {
-            $days = new Collection($ad['days']);
-
-            $totals = [];
-            foreach (self::AD_METRICS as $field) {
-                $totals[$field] = (float) $days->sum(fn (array $day) => $day[$field] ?? 0);
-            }
-
-            return $ad['meta'] + [
-                'spend' => round($totals['spend'], 2),
-                'impressions' => (int) $totals['impressions'],
-                'clicks' => (int) $totals['clicks'],
-                'leads' => (int) $totals['leads'],
-                'view_content' => (int) $totals['view_content'],
-                'landing_page_views' => (int) $totals['landing_page_views'],
-                'follows' => (int) $totals['follows'],
-                'cost_per_follow' => $totals['follows'] > 0
-                    ? round($totals['spend'] / $totals['follows'], 2)
-                    : null,
-                'ctr' => $totals['impressions'] > 0
-                    ? round($totals['clicks'] / $totals['impressions'] * 100, 2)
-                    : null,
-                'cpc' => $totals['clicks'] > 0
-                    ? round($totals['spend'] / $totals['clicks'], 2)
-                    : null,
-                'cpl' => $totals['leads'] > 0
-                    ? round($totals['spend'] / $totals['leads'], 2)
-                    : null,
-                'cost_per_page_view' => $totals['landing_page_views'] > 0
-                    ? round($totals['spend'] / $totals['landing_page_views'], 2)
-                    : null,
-                'lead_rate' => $totals['clicks'] > 0
-                    ? round($totals['leads'] / $totals['clicks'] * 100, 1)
-                    : null,
-            ];
-        }, $ads));
+    private function ratio(float $numerator, float $denominator, int $precision = 2): ?float
+    {
+        return $denominator > 0 ? round($numerator / $denominator, $precision) : null;
     }
 
     /**

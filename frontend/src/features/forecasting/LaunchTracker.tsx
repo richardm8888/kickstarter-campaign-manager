@@ -47,7 +47,7 @@ export function LaunchTracker({ plan }: { plan: LaunchPlan }) {
     <Card>
       <CardHeader>
         <CardTitle>
-          {number(summary.projected_at_launch)} subscribers by{' '}
+          An audience of {number(summary.projected_at_launch)} by{' '}
           {new Date(plan.launch_date!).toLocaleDateString('en-GB', {
             day: 'numeric',
             month: 'long',
@@ -67,7 +67,7 @@ export function LaunchTracker({ plan }: { plan: LaunchPlan }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="h-64" role="img" aria-label="Projected and actual subscribers over time">
+        <div className="h-64" role="img" aria-label="Projected and actual audience size over time">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
@@ -150,9 +150,9 @@ export function LaunchTracker({ plan }: { plan: LaunchPlan }) {
             <p className="text-xs text-muted-foreground">per day</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">List now</p>
+            <p className="text-xs text-muted-foreground">Audience now</p>
             <p className="mt-0.5 text-lg font-semibold tabular-nums">{number(summary.starting_list)}</p>
-            <p className="text-xs text-muted-foreground">subscribers</p>
+            <p className="text-xs text-muted-foreground">subscribers & followers</p>
           </div>
         </div>
 

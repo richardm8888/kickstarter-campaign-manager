@@ -18,15 +18,18 @@ import { getProject } from '@/features/projects/api'
 import { logout } from '@/features/auth/api'
 import { ThemeToggle } from './ThemeToggle'
 
+// Journey order, not alphabetical: see the state, build the page, connect
+// the stack, run the ads, then plan and judge. Analytics and AI insights
+// sit late because they interpret what the earlier steps produce.
 const NAV = [
   { to: '/projects/$projectId', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/projects/$projectId/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/projects/$projectId/ads', label: 'Ads', icon: Megaphone },
-  { to: '/projects/$projectId/insights', label: 'AI insights', icon: Brain },
-  { to: '/projects/$projectId/health', label: 'Campaign health', icon: HeartPulse },
-  { to: '/projects/$projectId/forecast', label: 'Forecast', icon: TrendingUp },
   { to: '/projects/$projectId/landing-page', label: 'Landing page', icon: PanelsTopLeft },
   { to: '/projects/$projectId/integrations', label: 'Integrations', icon: Cable },
+  { to: '/projects/$projectId/ads', label: 'Ads', icon: Megaphone },
+  { to: '/projects/$projectId/forecast', label: 'Forecast', icon: TrendingUp },
+  { to: '/projects/$projectId/health', label: 'Campaign health', icon: HeartPulse },
+  { to: '/projects/$projectId/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/projects/$projectId/insights', label: 'AI insights', icon: Brain },
   { to: '/projects/$projectId/settings', label: 'Settings', icon: Settings },
 ] as const
 

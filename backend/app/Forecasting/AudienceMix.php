@@ -16,7 +16,6 @@ final readonly class AudienceMix
         public int $vips,
     ) {}
 
-    /** @param  array<string, float>  $rates */
     public static function fromList(int $emailSubscribers, int $followers, int $vips): self
     {
         return new self(
@@ -31,14 +30,17 @@ final readonly class AudienceMix
         return $this->standard + $this->followers + $this->vips;
     }
 
-    /** @param  array<string, float>  $rates */
+    /**
+     * Each segment is floored separately so the total always equals the
+     * sum of the per-segment figures shown next to it.
+     *
+     * @param  array<string, float>  $rates
+     */
     public function backers(array $rates): int
     {
-        return (int) floor(
-            $this->standard * ($rates[BackerRates::STANDARD] ?? 0)
-            + $this->followers * ($rates[BackerRates::FOLLOWERS] ?? 0)
-            + $this->vips * ($rates[BackerRates::VIPS] ?? 0)
-        );
+        return (int) floor($this->standard * ($rates[BackerRates::STANDARD] ?? 0))
+            + (int) floor($this->followers * ($rates[BackerRates::FOLLOWERS] ?? 0))
+            + (int) floor($this->vips * ($rates[BackerRates::VIPS] ?? 0));
     }
 
     /**

@@ -35,6 +35,7 @@ export interface Ad {
   cpl: number | null
   cost_per_page_view: number | null
   landing_page_views: number
+  form_views: number
   follows: number
   cost_per_follow: number | null
   objective: 'signups' | 'traffic' | 'other'
@@ -144,13 +145,26 @@ export interface StatValue {
   change: number | null
 }
 
+export interface SetupStep {
+  key: string
+  label: string
+  detail: string
+  done: boolean
+  route: string
+}
+
+export interface Setup {
+  complete: boolean
+  steps: SetupStep[]
+}
+
 export interface DashboardCards {
   visitors: StatValue
   email_subscribers: StatValue
   vip_upgrades: StatValue
   conversion_rate: StatValue
   cac: StatValue
-  revenue: StatValue
+  ks_followers: StatValue
   projected_backers: StatValue
   funding_forecast: {
     value: number

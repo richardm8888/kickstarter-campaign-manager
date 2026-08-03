@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { getDashboard } from './api'
 import { getProject } from '@/features/projects/api'
+import { SetupCard } from './SetupCard'
 import { StatCard } from './StatCard'
 import { Funnel } from './Funnel'
 import { PageHeader } from '@/components/layout/ProjectLayout'
@@ -60,7 +61,7 @@ export function DashboardPage() {
     return <p role="alert" className="text-sm text-destructive">Couldn't load the dashboard. Try refreshing.</p>
   }
 
-  const { cards, funnel, currency } = data
+  const { setup, cards, funnel, currency } = data
   const forecast = cards.funding_forecast
 
   return (
@@ -68,6 +69,8 @@ export function DashboardPage() {
       <PageHeader title="Dashboard" subtitle="The state of your launch at a glance">
         <LaunchCountdown launchDate={project?.project.launch_date ?? null} projectId={projectId} />
       </PageHeader>
+
+      <SetupCard setup={setup} projectId={projectId} />
 
       <section aria-label="Key metrics" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Visitors (30d)" value={number(cards.visitors.value ?? 0)} change={cards.visitors.change} />
@@ -83,7 +86,11 @@ export function DashboardPage() {
           value={cards.cac.value !== null ? money(cards.cac.value, currency) : '—'}
           hint={cards.cac.value === null ? 'Needs ad spend data' : undefined}
         />
-        <StatCard label="Revenue (30d)" value={money(cards.revenue.value ?? 0, currency)} />
+        <StatCard
+          label="Kickstarter followers"
+          value={number(cards.ks_followers.value ?? 0)}
+          hint="Notified at launch — worth ~10 email signups each"
+        />
         <StatCard label="Projected backers" value={number(cards.projected_backers.value ?? 0)} />
         <Card>
           <CardContent className="p-5">

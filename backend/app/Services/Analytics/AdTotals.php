@@ -6,35 +6,61 @@ use App\Models\Project;
 use App\Recommendations\AdType;
 
 /**
- * Totals for the per-ad metric series, optionally split by the kind of ad
- * that produced them.
+ * Totals for the per-ad metric series: per ad, per ad type, or whole
+ * account.
  *
  * Meta restates each day on every sync, so the append-only store holds
  * several observations of the same (ad, metric, day). The latest one wins
  * before anything is summed — otherwise an hourly sync would multiply the
- * month's spend by the number of times it ran.
+ * month's spend by the number of times it ran. This is the only place that
+ * collapse is implemented; everything that reads per-ad data goes through
+ * it.
  */
 class AdTotals
 {
     /**
-     * Totals for the whole account, keyed by metric.
+     * One row per ad: its latest dimensions and the window's totals.
      *
      * @param  list<string>  $metrics
-     * @return array<string, float>
+     * @return list<array{dimensions: array<string, mixed>, totals: array<string, float>}>
      */
-    public function total(Project $project, array $metrics, int $days = 30): array
+    public function perAd(Project $project, array $metrics, int $days = 30): array
     {
-        $byType = $this->byType($project, $metrics, $days);
+        $snapshots = $project->metricSnapshots()
+            ->where('source', 'meta')
+            ->whereIn('metric', $metrics)
+            ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
+            ->orderBy('recorded_at')
+            ->orderBy('id')
+            ->get();
 
-        $totals = array_fill_keys($metrics, 0.0);
+        $ads = [];
 
-        foreach ($byType as $ofType) {
-            foreach ($ofType as $metric => $value) {
-                $totals[$metric] += $value;
+        foreach ($snapshots as $snapshot) {
+            $adId = $snapshot->dimensions['ad_id'] ?? null;
+
+            if ($adId === null) {
+                continue;
             }
+
+            // Names and classification can change between syncs; latest wins.
+            $ads[$adId]['dimensions'] = $snapshot->dimensions;
+
+            // Latest observation per (metric, day) wins.
+            $ads[$adId]['days'][$snapshot->recorded_at->toDateString()][$snapshot->metric] = (float) $snapshot->value;
         }
 
-        return $totals;
+        return array_values(array_map(function (array $ad) use ($metrics) {
+            $totals = array_fill_keys($metrics, 0.0);
+
+            foreach ($ad['days'] as $day) {
+                foreach ($day as $metric => $value) {
+                    $totals[$metric] += $value;
+                }
+            }
+
+            return ['dimensions' => $ad['dimensions'], 'totals' => $totals];
+        }, $ads));
     }
 
     /**
@@ -45,39 +71,33 @@ class AdTotals
      */
     public function byType(Project $project, array $metrics, int $days = 30): array
     {
-        $snapshots = $project->metricSnapshots()
-            ->where('source', 'meta')
-            ->whereIn('metric', $metrics)
-            ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
-            ->orderBy('recorded_at')
-            ->orderBy('id')
-            ->get();
-
-        // Latest observation per ad, metric and day.
-        $latest = [];
-
-        foreach ($snapshots as $snapshot) {
-            $adId = $snapshot->dimensions['ad_id'] ?? null;
-
-            if ($adId === null) {
-                continue;
-            }
-
-            $type = AdType::tryFrom($snapshot->dimensions['ad_type'] ?? '') ?? AdType::Unknown;
-            $date = $snapshot->recorded_at->toDateString();
-
-            $latest[$type->value][$adId][$snapshot->metric][$date] = (float) $snapshot->value;
-        }
-
         $totals = [];
 
-        foreach ($latest as $type => $ads) {
-            $totals[$type] = array_fill_keys($metrics, 0.0);
+        foreach ($this->perAd($project, $metrics, $days) as $ad) {
+            $type = (AdType::tryFrom($ad['dimensions']['ad_type'] ?? '') ?? AdType::Unknown)->value;
+            $totals[$type] ??= array_fill_keys($metrics, 0.0);
 
-            foreach ($ads as $byMetric) {
-                foreach ($byMetric as $metric => $days_) {
-                    $totals[$type][$metric] += array_sum($days_);
-                }
+            foreach ($ad['totals'] as $metric => $value) {
+                $totals[$type][$metric] += $value;
+            }
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Totals for the whole account, keyed by metric.
+     *
+     * @param  list<string>  $metrics
+     * @return array<string, float>
+     */
+    public function total(Project $project, array $metrics, int $days = 30): array
+    {
+        $totals = array_fill_keys($metrics, 0.0);
+
+        foreach ($this->perAd($project, $metrics, $days) as $ad) {
+            foreach ($ad['totals'] as $metric => $value) {
+                $totals[$metric] += $value;
             }
         }
 

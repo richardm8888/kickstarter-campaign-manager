@@ -26,7 +26,10 @@ class DashboardMetrics
 
         $newSubscribers = $this->audience->recentSignups($project, self::WINDOW_DAYS);
 
-        $forecast = $this->forecasts->forProject($project);
+        // Spend 0: the dashboard reports what the audience is worth today.
+        // Hypothetical budgets live on the Forecast page — projecting a
+        // default spend here showed backers a brand-new project cannot have.
+        $forecast = $this->forecasts->forProject($project, 0);
 
         return [
             'visitors' => [
@@ -43,16 +46,18 @@ class DashboardMetrics
             ],
             'conversion_rate' => [
                 'value' => $visitors > 0 ? round($newSubscribers / $visitors * 100, 1) : null,
-                'change' => $this->series->changePercent($project, 'signup_rate'),
+                'change' => null,
             ],
             'cac' => [
                 // Cost, in minor units, to acquire one subscriber this window.
                 'value' => $newSubscribers > 0 ? (int) round($spend * 100 / $newSubscribers) : null,
                 'change' => null,
             ],
-            'revenue' => [
-                // Stripe revenue (VIP upgrades) in minor units.
-                'value' => (int) round($this->series->sum($project, 'revenue', self::WINDOW_DAYS, 'stripe') * 100),
+            // The audience Kickstarter notifies at launch — worth ten email
+            // subscribers a head, so it earns a card. Revenue stays on the
+            // Analytics page; pre-launch it is pennies of VIP upgrades.
+            'ks_followers' => [
+                'value' => $this->audience->followers($project),
                 'change' => null,
             ],
             'projected_backers' => [

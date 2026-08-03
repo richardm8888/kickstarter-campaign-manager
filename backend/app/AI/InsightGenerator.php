@@ -64,22 +64,12 @@ class InsightGenerator
             ];
         }
 
-        if (($convChange = $this->series->changePercent($project, 'signup_rate')) !== null && $convChange <= -15) {
-            $signals[] = [
-                'key' => 'conversion_drop',
-                'severity' => 'critical',
-                'title' => sprintf('Landing page conversion dropped %s%%', abs($convChange)),
-                'body' => 'Fewer visitors are becoming subscribers than last week. Recent page changes or colder traffic are the usual causes.',
-                'action' => 'Review your latest landing page edits and traffic sources.',
-            ];
-        }
-
         if (($needed = $this->forecasts->subscribersNeeded($project)) > 0) {
             $signals[] = [
                 'key' => 'subscribers_needed',
                 'severity' => 'info',
-                'title' => sprintf('You need another %d subscribers to reach your funding goal', $needed),
-                'body' => 'Based on your current conversion rates and average pledge, your list is not yet large enough to fund the campaign.',
+                'title' => sprintf('You need another %d signups to reach your funding goal', $needed),
+                'body' => 'Based on what your ads deliver and your average pledge, your audience is not yet large enough to fund the campaign.',
                 'action' => 'Increase ad spend or add a referral push to close the gap before launch.',
             ];
         }

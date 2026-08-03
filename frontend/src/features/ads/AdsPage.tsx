@@ -67,6 +67,15 @@ function AdCard({ ad, hasLeadData }: { ad: Ad; hasLeadData: boolean }) {
               />
               <Metric label="Signups" value={number(ad.leads)} />
             </>
+          ) : ad.ad_type === 'instant_form' && ad.form_views > 0 ? (
+            <>
+              <Metric label="Form opens" value={number(ad.form_views)} />
+              <Metric label="Signups" value={number(ad.leads)} />
+              <Metric
+                label="Open→signup"
+                value={ad.form_views > 0 ? percent((ad.leads / ad.form_views) * 100, 0) : '—'}
+              />
+            </>
           ) : ad.objective === 'traffic' ? (
             <>
               <Metric label="Page views" value={number(ad.landing_page_views)} />

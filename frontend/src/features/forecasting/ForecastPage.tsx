@@ -204,6 +204,10 @@ export function ForecastPage() {
                   <dd className="tabular-nums">{number(measured.email_subscribers)}</dd>
                 </div>
                 <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Kickstarter followers</dt>
+                  <dd className="tabular-nums">{number(measured.followers)}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Average pledge</dt>
                   <dd className="tabular-nums">{money(measured.average_pledge)}</dd>
                 </div>

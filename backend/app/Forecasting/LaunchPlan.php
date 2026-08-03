@@ -3,7 +3,6 @@
 namespace App\Forecasting;
 
 use App\Models\Project;
-use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricSeries;
 use Illuminate\Support\Carbon;
 
@@ -29,7 +28,6 @@ class LaunchPlan
     public function __construct(
         private readonly ForecastEngine $forecasts,
         private readonly MetricSeries $series,
-        private readonly AudienceSize $audience,
     ) {}
 
     public function build(Project $project, ?int $plannedAdSpend = null): array
