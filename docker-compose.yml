@@ -6,10 +6,18 @@
 #   - Bundled Postgres container: leave DB_URL empty and run
 #       docker compose -f docker-compose.yml -f docker-compose.local-db.yml up -d --build
 
+# Cap container logs so they can't fill a small droplet's disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   backend:
     build: ./backend
     restart: unless-stopped
+    logging: *default-logging
     environment: &laravel-env
       APP_ENV: production
       APP_DEBUG: "false"
@@ -29,29 +37,49 @@ services:
       SESSION_DRIVER: database
       LOG_CHANNEL: stderr
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # Laravel's built-in health endpoint; start_period covers first-boot
+    # migrations so a slow start isn't reported as a failure.
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/up"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
 
   queue:
     build: ./backend
     restart: unless-stopped
+    logging: *default-logging
     command: php artisan queue:work --tries=3
     environment: *laravel-env
+    # Wait for migrations (backend healthy) before processing jobs.
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   scheduler:
     build: ./backend
     restart: unless-stopped
+    logging: *default-logging
     command: php artisan schedule:work
     environment: *laravel-env
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
     restart: unless-stopped
+    logging: *default-logging
     ports:
       # 8080 by default so the stack can coexist with another app already
       # holding port 80 on the same host.
       - "${HTTP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     depends_on:
       - backend

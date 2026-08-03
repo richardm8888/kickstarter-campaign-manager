@@ -115,6 +115,49 @@ certificates are automatic.) Finally set
 `APP_URL=https://launch.yourdomain.com` in `.env` and
 `docker compose up -d` again.
 
+## Keeping it running
+
+Every service sets `restart: unless-stopped`, so containers restart on
+crash and come back after a droplet reboot. Confirm Docker itself starts
+at boot (default for apt installs):
+
+```bash
+systemctl is-enabled docker      # expect: enabled
+```
+
+**Health checks.** The API is probed via Laravel's `/up` endpoint and the
+frontend via its nginx root, so status is visible at a glance:
+
+```bash
+docker compose ps                # STATUS column shows (healthy)
+docker compose logs -f backend   # follow API logs
+docker compose restart backend   # restart one service
+```
+
+Note that Docker restarts containers that *exit*, not ones that are merely
+unhealthy. That covers crashes and reboots. If you also want automatic
+recovery from a hung-but-alive process, add a watchdog:
+
+```yaml
+# optional, appended to docker-compose.yml
+  autoheal:
+    image: willfarrell/autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+```
+
+**Logs** are capped at 10 MB × 3 files per service, so they can't fill the
+disk. Reclaim space from old images after updates with
+`docker system prune -af` (safe — it leaves volumes alone).
+
+**Outside monitoring.** `/up` is a public health endpoint, ideal for a free
+uptime monitor (UptimeRobot, Better Stack) pointed at
+`https://your-domain/up` to alert you if the droplet or app goes down. Pair
+it with DigitalOcean's own droplet alerts for CPU and disk.
+
 ## Free hosting (Render + Neon + GitHub Actions)
 
 The repo ships a single-service free-tier deployment: the root `Dockerfile`
