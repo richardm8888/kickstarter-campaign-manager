@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Actions\ImportMetaLeads;
+use App\Actions\ImportStripeVips;
 use App\Models\Integration;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -10,8 +11,9 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Scheduled hourly: sweeps every connected Meta account for new Instant
- * Form leads and forwards them to the project's email provider.
+ * Scheduled hourly: sweeps every project for new contacts — Meta Instant
+ * Form leads and Stripe VIP purchases — and forwards them to the email
+ * provider.
  */
 class ImportLeadsForAllProjects implements ShouldQueue
 {
@@ -19,19 +21,23 @@ class ImportLeadsForAllProjects implements ShouldQueue
 
     public int $tries = 2;
 
-    public function handle(ImportMetaLeads $import): void
+    public function handle(ImportMetaLeads $leads, ImportStripeVips $vips): void
     {
         Integration::query()
-            ->where('provider', 'meta')
+            ->whereIn('provider', ['meta', 'stripe'])
             ->where('status', Integration::STATUS_CONNECTED)
             ->with('project')
-            ->each(function (Integration $integration) use ($import) {
+            ->each(function (Integration $integration) use ($leads, $vips) {
                 try {
-                    $import->handle($integration->project);
+                    match ($integration->provider) {
+                        'meta' => $leads->handle($integration->project),
+                        'stripe' => $vips->handle($integration->project),
+                    };
                 } catch (Throwable $e) {
                     // One failing account must not stop the rest.
-                    Log::warning('Lead import failed for project', [
+                    Log::warning('Contact import failed for project', [
                         'project_id' => $integration->project_id,
+                        'provider' => $integration->provider,
                         'error' => $e->getMessage(),
                     ]);
                 }

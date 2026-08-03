@@ -38,7 +38,7 @@ class MailerLiteIntegration extends BaseIntegration
      * is safe to retry. When a group is configured, the contact joins it —
      * which is what automations and segments are usually built around.
      */
-    public function addSubscriber(string $email, array $fields = []): bool
+    public function addSubscriber(string $email, array $fields = [], array $groupIds = []): bool
     {
         $record = $this->record();
 
@@ -46,16 +46,30 @@ class MailerLiteIntegration extends BaseIntegration
             return false;
         }
 
-        $groupId = $record->settings['group_id'] ?? null;
+        // Callers may target a specific group (VIPs); otherwise the
+        // project's default group applies.
+        $groups = $groupIds !== []
+            ? $groupIds
+            : array_filter([$record->settings['group_id'] ?? null]);
 
         return Http::withToken($record->credentials['api_key'])
             ->acceptJson()
             ->post('https://connect.mailerlite.com/api/subscribers', array_filter([
                 'email' => $email,
                 'fields' => $fields ?: null,
-                'groups' => filled($groupId) ? [(string) $groupId] : null,
+                'groups' => $groups !== [] ? array_map('strval', array_values($groups)) : null,
             ]))
             ->successful();
+    }
+
+    /** The group VIP purchasers should join, falling back to the default. */
+    public function vipGroupIds(): array
+    {
+        $settings = $this->record()->settings ?? [];
+
+        return array_values(array_filter([
+            $settings['vip_group_id'] ?? $settings['group_id'] ?? null,
+        ]));
     }
 
     /**

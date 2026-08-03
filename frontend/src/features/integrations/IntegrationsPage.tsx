@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { MailerLiteGroupPicker } from './MailerLiteGroupPicker'
+import { StripeProductPicker } from './StripeProductPicker'
 import { ApiError } from '@/lib/api'
 import type { IntegrationStatus } from '@/lib/types'
 
@@ -149,6 +150,10 @@ function IntegrationCard({ projectId, integration }: {
 
         {integration.provider === 'mailerlite' && integration.status === 'connected' && (
           <MailerLiteGroupPicker projectId={projectId} />
+        )}
+
+        {integration.provider === 'stripe' && integration.status === 'connected' && (
+          <StripeProductPicker projectId={projectId} />
         )}
 
         {open && integration.status !== 'connected' && (

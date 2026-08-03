@@ -242,6 +242,15 @@ docker compose exec backend php artisan meta:import-leads
 
 The Meta token needs the `leads_retrieval` permission for this.
 
+**Stripe VIP purchases.** Select which Stripe products count as a VIP
+upgrade on the Integrations screen. Each hour, buyers of those products
+become VIP subscribers and are added to your VIP email group; every other
+purchase is counted as revenue only. On demand:
+
+```bash
+docker compose exec backend php artisan stripe:import-vips
+```
+
 Choose which MailerLite group imported contacts join on the Integrations
 screen — automations and segments are usually built around groups, so this
 is what makes the imported list actionable.

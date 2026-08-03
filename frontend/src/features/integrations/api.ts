@@ -45,3 +45,25 @@ export function setMailerLiteGroups(
 ): Promise<{ group_id: string | null; vip_group_id: string | null; message: string }> {
   return api.put(`/projects/${projectId}/integrations/mailerlite/group`, input)
 }
+
+export interface StripeProducts {
+  connected: boolean
+  products: Array<{ id: string; name: string }>
+  vip_product_ids: string[]
+  error?: string
+}
+
+export const getStripeProducts = (projectId: string) =>
+  queryOptions({
+    queryKey: ['projects', projectId, 'stripe-products'],
+    queryFn: () => api.get<StripeProducts>(`/projects/${projectId}/integrations/stripe/products`),
+  })
+
+export function setStripeVipProducts(
+  projectId: string,
+  vipProductIds: string[],
+): Promise<{ vip_product_ids: string[]; message: string }> {
+  return api.put(`/projects/${projectId}/integrations/stripe/products`, {
+    vip_product_ids: vipProductIds,
+  })
+}

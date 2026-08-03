@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\MailerLiteGroupController;
 use App\Http\Controllers\Api\PageAnalysisController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\StripeProductController;
 use App\Http\Controllers\Api\PublicLandingPageController;
 use App\Jobs\SyncAllIntegrations;
 use Illuminate\Http\Request;
@@ -69,6 +70,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/integrations', [IntegrationController::class, 'index']);
         Route::get('/integrations/mailerlite/groups', [MailerLiteGroupController::class, 'index']);
         Route::put('/integrations/mailerlite/group', [MailerLiteGroupController::class, 'update']);
+        Route::get('/integrations/stripe/products', [StripeProductController::class, 'index']);
+        Route::put('/integrations/stripe/products', [StripeProductController::class, 'update']);
         Route::post('/integrations/{provider}/connect', [IntegrationController::class, 'connect']);
         Route::delete('/integrations/{provider}', [IntegrationController::class, 'disconnect']);
         Route::post('/integrations/{provider}/sync', [IntegrationController::class, 'sync']);
