@@ -91,7 +91,7 @@ class IntegrationTest extends TestCase
             'credentials' => ['api_key' => 'ml-secret'],
         ]);
 
-        (new SyncIntegration($project, 'mailerlite'))->handle(app(\App\Integrations\IntegrationManager::class));
+        (new SyncIntegration($project, 'mailerlite'))->handle(app(\App\Actions\RunIntegrationSync::class));
 
         $this->assertDatabaseHas('metric_snapshots', [
             'project_id' => $project->id,

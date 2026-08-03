@@ -206,6 +206,32 @@ at boot (default for apt installs):
 systemctl is-enabled docker      # expect: enabled
 ```
 
+**Integration syncs.** Every sync logs its outcome to the container logs —
+provider, project, duration, metrics recorded, or the error:
+
+```bash
+docker compose logs -f scheduler          # hourly trigger
+docker compose logs -f queue              # the syncs themselves
+docker compose logs queue | grep 'Integration sync'
+```
+
+Run one on demand and see the result immediately — the fastest way to
+diagnose a provider returning nothing:
+
+```bash
+docker compose exec backend php artisan integrations:sync
+docker compose exec backend php artisan integrations:sync --provider=ga4
+```
+
+It prints a row per integration with the metrics recorded or the error,
+and exits non-zero if any failed. Jobs that fail every attempt land in the
+failed-jobs table:
+
+```bash
+docker compose exec backend php artisan queue:failed
+docker compose exec backend php artisan queue:retry all
+```
+
 **Health checks.** The API is probed via Laravel's `/up` endpoint and the
 frontend via its nginx root, so status is visible at a glance:
 

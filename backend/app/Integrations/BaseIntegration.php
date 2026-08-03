@@ -6,6 +6,7 @@ use App\Integrations\Contracts\Integration as IntegrationContract;
 use App\Models\Integration as IntegrationModel;
 use App\Models\Project;
 use App\Services\Analytics\MetricRecorder;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -78,6 +79,13 @@ abstract class BaseIntegration implements IntegrationContract
         try {
             $rows = $this->fetchMetrics($record->credentials);
         } catch (Throwable $e) {
+            // Logged here so the stack trace survives; the job logs the outcome.
+            Log::error('Integration request failed', [
+                'project_id' => $this->project->id,
+                'provider' => $this->provider(),
+                'exception' => $e,
+            ]);
+
             $record->fill([
                 'status' => IntegrationModel::STATUS_ERROR,
                 'status_message' => $e->getMessage(),

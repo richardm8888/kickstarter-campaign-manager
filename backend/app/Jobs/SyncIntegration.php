@@ -2,8 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Events\IntegrationSynced;
-use App\Integrations\IntegrationManager;
+use App\Actions\RunIntegrationSync;
 use App\Models\Project;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -19,12 +18,8 @@ class SyncIntegration implements ShouldQueue
         public readonly string $provider,
     ) {}
 
-    public function handle(IntegrationManager $integrations): void
+    public function handle(RunIntegrationSync $sync): void
     {
-        $result = $integrations->for($this->project, $this->provider)->sync();
-
-        if ($result->ok) {
-            IntegrationSynced::dispatch($this->project, $this->provider, $result->metricsRecorded);
-        }
+        $sync->handle($this->project, $this->provider);
     }
 }
