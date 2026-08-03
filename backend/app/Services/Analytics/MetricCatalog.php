@@ -59,6 +59,7 @@ class MetricCatalog
         'ad_follows' => self::DAILY_TOTAL,
         'ad_view_content' => self::DAILY_TOTAL,
         'ad_landing_page_views' => self::DAILY_TOTAL,
+        'ad_form_views' => self::DAILY_TOTAL,
     ];
 
     public function aggregation(string $metric): string

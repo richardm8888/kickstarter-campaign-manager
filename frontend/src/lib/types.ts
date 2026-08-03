@@ -159,11 +159,29 @@ export interface DashboardCards {
   }
 }
 
+export interface FunnelBranch {
+  key: string
+  label: string
+  value: number
+  conversion: number | null
+}
+
 export interface FunnelStep {
   key: string
   label: string
   value: number
   conversion: number | null
+  note: string | null
+  /** 'window' = the rolling ad window, 'total' = the standing audience. */
+  basis: 'window' | 'total'
+  /** Minor units, on the impressions step only. */
+  spend?: number
+  branches?: FunnelBranch[]
+}
+
+export interface Funnel {
+  window_days: number
+  steps: FunnelStep[]
 }
 
 export interface SeriesPoint {

@@ -47,6 +47,11 @@ class MetaIntegration extends BaseIntegration
      */
     public const LANDING_PAGE_VIEW_ACTIONS = ['landing_page_view'];
 
+    /**
+     * Instant form opened. Not every account reports it, so the funnel
+     * falls back to clicks on form ads — a click on one is an open.
+     */
+    public const FORM_VIEW_ACTIONS = ['onsite_conversion.lead_form_open', 'lead_form_open'];
 
     public function provider(): string
     {
@@ -142,6 +147,7 @@ class MetaIntegration extends BaseIntegration
             $pixelLeads = $this->countActions($row['actions'] ?? [], self::PIXEL_LEAD_ACTIONS);
             $viewContent = $this->countActions($row['actions'] ?? [], self::VIEW_CONTENT_ACTIONS);
             $landingPageViews = $this->countActions($row['actions'] ?? [], self::LANDING_PAGE_VIEW_ACTIONS);
+            $formViews = $this->countActions($row['actions'] ?? [], self::FORM_VIEW_ACTIONS);
 
             // The same pixel event means a follow on a Kickstarter page and
             // an owned contact on the creator's own page.
@@ -165,6 +171,7 @@ class MetaIntegration extends BaseIntegration
                 'ad_leads' => $leads,
                 'ad_view_content' => $viewContent,
                 'ad_landing_page_views' => $landingPageViews,
+                'ad_form_views' => $formViews,
                 'ad_follows' => $follows,
             ] as $metric => $value) {
                 $rows[] = [

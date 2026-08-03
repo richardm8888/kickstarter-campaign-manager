@@ -34,7 +34,7 @@ class AudienceAndForecastTest extends TestCase
         $this->getJson("/api/projects/{$project->id}/dashboard")
             ->assertOk()
             ->assertJsonPath('cards.email_subscribers.value', 67)
-            ->assertJsonPath('funnel.2.value', 67);
+            ->assertJsonPath('funnel.steps.3.value', 67);
     }
 
     public function test_the_local_count_wins_when_it_is_larger(): void

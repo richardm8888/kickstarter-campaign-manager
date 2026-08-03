@@ -23,6 +23,8 @@ class DashboardTest extends TestCase
             ->metric('meta', 'clicks', 800, now()->subDay())->create();
         MetricSnapshot::factory()->for($project)
             ->metric('meta', 'spend', 120, now()->subDay())->create();
+        MetricSnapshot::factory()->for($project)
+            ->metric('meta', 'impressions', 40000, now()->subDay())->create();
 
         Subscriber::factory()->for($project)->count(40)->create();
         Subscriber::factory()->for($project)->vip()->count(10)->create();
@@ -39,13 +41,21 @@ class DashboardTest extends TestCase
             ->assertJsonPath('cards.cac.value', 240) // £120 spend / 50 subscribers = £2.40, in pence
             ->assertJsonStructure(['cards' => ['funding_forecast' => ['value', 'goal', 'coverage', 'confidence']]]);
 
-        $funnel = collect($response->json('funnel'))->keyBy('key');
+        $funnel = collect($response->json('funnel.steps'))->keyBy('key');
 
-        $this->assertSame(800, $funnel['ads']['value']);
-        $this->assertSame(500, $funnel['landing_page']['value']);
-        $this->assertSame(50, $funnel['email_signup']['value']);
+        $this->assertSame(40000, $funnel['impressions']['value']);
+        $this->assertSame(12000, $funnel['impressions']['spend'], 'spend rides along in minor units');
+        $this->assertSame(800, $funnel['ad_clicks']['value']);
+        // JSON drops the fractional zero, so compare loosely.
+        $this->assertEquals(2.0, $funnel['ad_clicks']['conversion'], 'clicks over impressions is the CTR');
+        $this->assertSame(50, $funnel['signups']['value']);
         $this->assertSame(10, $funnel['vip_upgrade']['value']);
-        $this->assertSame(62.5, $funnel['landing_page']['conversion']);
+
+        // No per-ad landing page views, so GA4 sessions stand in.
+        $branches = collect($funnel['reached']['branches'])->keyBy('key');
+        $this->assertSame(500, $branches['landing_page_views']['value']);
+        $this->assertSame(62.5, $branches['landing_page_views']['conversion']);
+        $this->assertSame(0, $branches['form_views']['value']);
     }
 
     public function test_dashboard_handles_a_brand_new_project_with_no_data(): void

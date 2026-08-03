@@ -114,10 +114,12 @@ export function DashboardPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Launch funnel</CardTitle>
-          <CardDescription>Last 30 days, from ad click to projected backer</CardDescription>
+          <CardDescription>
+            Ads over the last {funnel.window_days} days, then your audience to date
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Funnel steps={funnel} />
+          <Funnel funnel={funnel} currency={currency} />
         </CardContent>
       </Card>
     </>

@@ -298,7 +298,7 @@ class MetaLeadImportTest extends TestCase
         $this->assertSame(6.0, $value('ad_leads'), 'form signups must exclude follows');
     }
 
-    public function test_follows_appear_in_the_kickstarter_step_of_the_funnel(): void
+    public function test_follows_count_towards_signups_in_the_funnel(): void
     {
         $project = Project::factory()->create();
 
@@ -308,9 +308,11 @@ class MetaLeadImportTest extends TestCase
 
         \Laravel\Sanctum\Sanctum::actingAs($project->user);
 
-        $funnel = collect($this->getJson("/api/projects/{$project->id}/dashboard")->json('funnel'))
+        $funnel = collect($this->getJson("/api/projects/{$project->id}/dashboard")->json('funnel.steps'))
             ->keyBy('key');
 
-        $this->assertSame(14, $funnel['kickstarter_notify']['value']);
+        // A follow belongs to Kickstarter rather than the creator's list, but
+        // it is still a person the campaign reached.
+        $this->assertSame(14, $funnel['signups']['value']);
     }
 }
