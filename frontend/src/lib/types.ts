@@ -64,6 +64,12 @@ export interface EventSetup {
   }>
 }
 
+export interface ActionTypeReport {
+  action_types: Array<{ action_type: string; total: number }>
+  mapping: { lead: string[]; view_content: string[] }
+  error?: string
+}
+
 export interface PageCheck {
   key: string
   label: string

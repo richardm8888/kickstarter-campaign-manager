@@ -99,7 +99,7 @@ export function AdsPage() {
 
       {setup && (
         <div className="mb-4">
-          <EventSetupGuide setup={setup} />
+          <EventSetupGuide setup={setup} projectId={projectId} />
         </div>
       )}
 

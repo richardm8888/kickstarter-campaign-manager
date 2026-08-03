@@ -3,6 +3,7 @@ import { Check, ChevronDown, Copy, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { ActionTypeMapper } from './ActionTypeMapper'
 import { cn } from '@/lib/utils'
 import type { EventSetup } from '@/lib/types'
 
@@ -87,7 +88,7 @@ function EventStatus({ detected, children }: { detected: boolean; children: Reac
  * Walks a creator through installing the pixel and the two events that
  * make ad judgement possible — and verifies each one against live data.
  */
-export function EventSetupGuide({ setup }: { setup: EventSetup }) {
+export function EventSetupGuide({ setup, projectId }: { setup: EventSetup; projectId: string }) {
   const allDetected = setup.events.every((e) => e.detected)
   const [open, setOpen] = useState(!allDetected)
 
@@ -116,6 +117,9 @@ export function EventSetupGuide({ setup }: { setup: EventSetup }) {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
+        {/* Only worth asking about mappings once Meta is actually connected. */}
+        <ActionTypeMapper projectId={projectId} enabled={setup.meta_connected && !allDetected} />
+
         <ul className="flex flex-col gap-2">
           {setup.events.map((event) => (
             <li key={event.event} className="flex flex-wrap items-baseline justify-between gap-2">

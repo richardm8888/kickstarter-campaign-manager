@@ -12,16 +12,20 @@ class MetaIntegration extends BaseIntegration
      * whether they were attributed to the pixel, the site or an on-site
      * event, so each of ours accepts a family of names.
      */
-    private const LEAD_ACTIONS = [
+    public const LEAD_ACTIONS = [
         'lead',
         'offsite_conversion.fb_pixel_lead',
         'onsite_conversion.lead_grouped',
         'onsite_web_lead',
+        'leadgen_grouped',
+        'offsite_conversion.fb_pixel_complete_registration',
+        'complete_registration',
     ];
 
-    private const VIEW_CONTENT_ACTIONS = [
+    public const VIEW_CONTENT_ACTIONS = [
         'view_content',
         'offsite_conversion.fb_pixel_view_content',
+        'landing_page_view',
     ];
 
     public function provider(): string
@@ -66,15 +70,20 @@ class MetaIntegration extends BaseIntegration
         $accountId = ltrim($credentials['ad_account_id'], 'act_');
         $version = config('services.meta.api_version');
 
-        $days = Http::baseUrl("https://graph.facebook.com/{$version}")
-            ->get("/act_{$accountId}/insights", [
+        $days = $this->paginate(
+            "https://graph.facebook.com/{$version}/act_{$accountId}/insights",
+            [
                 'access_token' => $credentials['access_token'],
                 'level' => 'ad',
                 'date_preset' => 'last_14d',
                 'time_increment' => 1,
                 'limit' => 500,
                 'fields' => 'ad_id,ad_name,campaign_name,adset_name,spend,impressions,clicks,actions',
-            ])->throw()->json('data', []);
+            ],
+        );
+
+        $leadActions = $this->actionTypesFor('lead');
+        $viewContentActions = $this->actionTypesFor('view_content');
 
         $rows = [];
         $accountTotals = [];
@@ -85,8 +94,8 @@ class MetaIntegration extends BaseIntegration
             $spend = (float) ($row['spend'] ?? 0);
             $impressions = (float) ($row['impressions'] ?? 0);
             $clicks = (float) ($row['clicks'] ?? 0);
-            $leads = $this->countActions($row['actions'] ?? [], self::LEAD_ACTIONS);
-            $viewContent = $this->countActions($row['actions'] ?? [], self::VIEW_CONTENT_ACTIONS);
+            $leads = $this->countActions($row['actions'] ?? [], $leadActions);
+            $viewContent = $this->countActions($row['actions'] ?? [], $viewContentActions);
 
             $dimensions = [
                 'ad_id' => (string) ($row['ad_id'] ?? 'unknown'),
@@ -135,15 +144,104 @@ class MetaIntegration extends BaseIntegration
         return $rows;
     }
 
-    /** @param  list<array{action_type?: string, value?: mixed}>  $actions */
+    /**
+     * Meta reports the same conversion under several action types — an
+     * aggregate ("lead") alongside the specific source
+     * ("offsite_conversion.fb_pixel_lead"). Summing would double count and
+     * taking the first match lets a leading zero win, so take the largest.
+     *
+     * @param  list<array{action_type?: string, value?: mixed}>  $actions
+     */
     private function countActions(array $actions, array $wanted): float
     {
+        $counts = [0.0];
+
         foreach ($actions as $action) {
             if (in_array($action['action_type'] ?? '', $wanted, true)) {
-                return (float) ($action['value'] ?? 0);
+                $counts[] = (float) ($action['value'] ?? 0);
             }
         }
 
-        return 0.0;
+        return max($counts);
+    }
+
+    /** Action types this project treats as each conversion, overridable per project. */
+    private function actionTypesFor(string $event): array
+    {
+        $configured = $this->record()->settings["{$event}_actions"] ?? null;
+
+        if (is_array($configured) && $configured !== []) {
+            return $configured;
+        }
+
+        return $event === 'lead' ? self::LEAD_ACTIONS : self::VIEW_CONTENT_ACTIONS;
+    }
+
+    /**
+     * Every distinct action type the account reported, with totals — used
+     * by the setup guide to let a creator map custom conversions.
+     */
+    public function discoverActionTypes(int $days = 14): array
+    {
+        $record = $this->record();
+
+        if (! $record->isConnected() || $record->credentials === null) {
+            return [];
+        }
+
+        $credentials = $record->credentials;
+        $accountId = ltrim($credentials['ad_account_id'], 'act_');
+        $version = config('services.meta.api_version');
+
+        $rows = $this->paginate(
+            "https://graph.facebook.com/{$version}/act_{$accountId}/insights",
+            [
+                'access_token' => $credentials['access_token'],
+                'level' => 'account',
+                'date_preset' => $days <= 7 ? 'last_7d' : 'last_14d',
+                'fields' => 'actions',
+                'limit' => 100,
+            ],
+        );
+
+        $totals = [];
+
+        foreach ($rows as $row) {
+            foreach ($row['actions'] ?? [] as $action) {
+                $type = $action['action_type'] ?? null;
+
+                if ($type !== null) {
+                    $totals[$type] = ($totals[$type] ?? 0) + (float) ($action['value'] ?? 0);
+                }
+            }
+        }
+
+        arsort($totals);
+
+        return array_map(
+            fn (string $type, float $total) => ['action_type' => $type, 'total' => $total],
+            array_keys($totals),
+            array_values($totals),
+        );
+    }
+
+    /** Follows Meta's cursor pagination so large accounts are not truncated. */
+    private function paginate(string $url, array $query, int $maxPages = 10): array
+    {
+        $rows = [];
+        $next = $url;
+        $params = $query;
+
+        for ($page = 0; $page < $maxPages && $next !== null; $page++) {
+            $response = Http::get($next, $params)->throw()->json();
+
+            $rows = array_merge($rows, $response['data'] ?? []);
+
+            // Subsequent pages carry their parameters in the cursor URL.
+            $next = $response['paging']['next'] ?? null;
+            $params = [];
+        }
+
+        return $rows;
     }
 }

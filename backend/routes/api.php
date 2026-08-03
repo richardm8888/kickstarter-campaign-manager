@@ -71,6 +71,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/ads', [AdsController::class, 'index']);
         Route::get('/ads/events', [AdsController::class, 'events']);
+        Route::get('/ads/action-types', [AdsController::class, 'actionTypes']);
+        Route::put('/ads/action-types', [AdsController::class, 'mapActions']);
 
         Route::get('/page-analyses', [PageAnalysisController::class, 'index']);
         Route::post('/page-analyses', [PageAnalysisController::class, 'store']);
