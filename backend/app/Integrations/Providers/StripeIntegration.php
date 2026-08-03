@@ -22,9 +22,9 @@ class StripeIntegration extends BaseIntegration
         return [
             'secret_key' => [
                 'label' => 'Secret key',
-                'help' => 'Stripe → Developers → API keys. A restricted key with read access to charges is enough.',
+                'help' => 'Stripe → Developers → API keys → Create restricted key. Grant Read on Charges, Checkout Sessions, Products and Prices — nothing else. A restricted key cannot take payments or issue refunds, so it is safer here than your secret key.',
                 'type' => 'password',
-                'placeholder' => 'sk_live_… or rk_live_…',
+                'placeholder' => 'rk_live_… (or sk_test_… while testing)',
             ],
         ];
     }
