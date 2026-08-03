@@ -17,6 +17,7 @@ class Project extends Model
         'name',
         'slug',
         'description',
+        'external_landing_url',
         'currency',
         'funding_goal',
         'average_pledge',
@@ -60,5 +61,24 @@ class Project extends Model
     public function insights(): HasMany
     {
         return $this->hasMany(Insight::class);
+    }
+
+    public function landingPageAnalyses(): HasMany
+    {
+        return $this->hasMany(LandingPageAnalysis::class);
+    }
+
+    /** True when the creator uses their own page rather than the built-in one. */
+    public function usesExternalLandingPage(): bool
+    {
+        return filled($this->external_landing_url);
+    }
+
+    /** Days until launch; negative once launched, null when no date is set. */
+    public function daysToLaunch(): ?int
+    {
+        return $this->launch_date
+            ? (int) now()->startOfDay()->diffInDays($this->launch_date->startOfDay(), false)
+            : null;
     }
 }

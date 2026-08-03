@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InsightController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\LandingPageController;
+use App\Http\Controllers\Api\PageAnalysisController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\PublicLandingPageController;
@@ -66,6 +67,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/integrations/{provider}/connect', [IntegrationController::class, 'connect']);
         Route::delete('/integrations/{provider}', [IntegrationController::class, 'disconnect']);
         Route::post('/integrations/{provider}/sync', [IntegrationController::class, 'sync']);
+
+        Route::get('/page-analyses', [PageAnalysisController::class, 'index']);
+        Route::post('/page-analyses', [PageAnalysisController::class, 'store']);
 
         Route::get('/landing-page', [LandingPageController::class, 'show']);
         Route::patch('/landing-page', [LandingPageController::class, 'update']);

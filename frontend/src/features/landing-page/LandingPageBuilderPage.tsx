@@ -3,6 +3,8 @@ import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { getLandingPage, updateLandingPage, updateSections } from './api'
+import { PageAnalyser } from './PageAnalyser'
+import { getProject } from '@/features/projects/api'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,6 +31,7 @@ export function LandingPageBuilderPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }
   const queryClient = useQueryClient()
   const { data, isPending } = useQuery(getLandingPage(projectId))
+  const { data: project } = useQuery(getProject(projectId))
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'landing-page'] })
@@ -74,6 +77,12 @@ export function LandingPageBuilderPage() {
           Served at <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/api/pages/{page.slug}</code>
         </p>
       )}
+
+      <PageAnalyser projectId={projectId} initialUrl={project?.project.external_landing_url ?? ''} />
+
+      <h2 className="mb-3 mt-8 text-sm font-semibold text-muted-foreground">
+        Or configure the built-in page
+      </h2>
 
       <div className="flex flex-col gap-3">
         {page.sections.map((section) => (

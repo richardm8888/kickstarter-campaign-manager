@@ -13,12 +13,23 @@ export const getProject = (projectId: string) =>
     queryFn: () => api.get<{ project: Project }>(`/projects/${projectId}`),
   })
 
-export function createProject(input: {
+export interface ProjectInput {
   name: string
-  description?: string
+  description?: string | null
+  external_landing_url?: string | null
+  currency?: string
   funding_goal?: number
   average_pledge?: number
-  launch_date?: string
-}): Promise<{ project: Project }> {
+  launch_date?: string | null
+}
+
+export function createProject(input: ProjectInput): Promise<{ project: Project }> {
   return api.post<{ project: Project }>('/projects', input)
+}
+
+export function updateProject(
+  projectId: string,
+  input: Partial<ProjectInput>,
+): Promise<{ project: Project }> {
+  return api.patch<{ project: Project }>(`/projects/${projectId}`, input)
 }

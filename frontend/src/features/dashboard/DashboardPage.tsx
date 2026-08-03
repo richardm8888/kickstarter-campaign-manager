@@ -1,6 +1,8 @@
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { getDashboard } from './api'
+import { getProject } from '@/features/projects/api'
 import { StatCard } from './StatCard'
 import { Funnel } from './Funnel'
 import { PageHeader } from '@/components/layout/ProjectLayout'
@@ -9,9 +11,40 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { money, number, percent } from '@/lib/format'
 
+/** Days-to-launch chip, or a prompt to set a date when none exists. */
+function LaunchCountdown({ launchDate, projectId }: { launchDate: string | null; projectId: string }) {
+  if (!launchDate) {
+    return (
+      <Link
+        to="/projects/$projectId/settings"
+        params={{ projectId }}
+        className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+      >
+        Set a launch date
+      </Link>
+    )
+  }
+
+  const days = Math.ceil(
+    (new Date(launchDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000,
+  )
+
+  return (
+    <Link to="/projects/$projectId/settings" params={{ projectId }} className="text-right">
+      <p className="text-sm font-medium">
+        {days > 0 ? `${days} ${days === 1 ? 'day' : 'days'} to launch` : days === 0 ? 'Launching today' : 'Launched'}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {new Date(launchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+      </p>
+    </Link>
+  )
+}
+
 export function DashboardPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }
   const { data, isPending, isError } = useQuery(getDashboard(projectId))
+  const { data: project } = useQuery(getProject(projectId))
 
   if (isPending) {
     return (
@@ -32,7 +65,9 @@ export function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="The state of your launch at a glance" />
+      <PageHeader title="Dashboard" subtitle="The state of your launch at a glance">
+        <LaunchCountdown launchDate={project?.project.launch_date ?? null} projectId={projectId} />
+      </PageHeader>
 
       <section aria-label="Key metrics" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Visitors (30d)" value={number(cards.visitors.value ?? 0)} change={cards.visitors.change} />

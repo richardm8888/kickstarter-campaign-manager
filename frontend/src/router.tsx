@@ -9,6 +9,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RegisterPage } from '@/features/auth/RegisterPage'
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { ProjectsPage } from '@/features/projects/ProjectsPage'
+import { SettingsPage } from '@/features/projects/SettingsPage'
 import { ProjectLayout } from '@/components/layout/ProjectLayout'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage'
@@ -113,6 +114,12 @@ const integrationsRoute = createRoute({
   component: IntegrationsPage,
 })
 
+const settingsRoute = createRoute({
+  getParentRoute: () => projectLayoutRoute,
+  path: '/settings',
+  component: SettingsPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -127,6 +134,7 @@ const routeTree = rootRoute.addChildren([
     forecastRoute,
     landingPageRoute,
     integrationsRoute,
+    settingsRoute,
   ]),
 ])
 

@@ -9,10 +9,28 @@ export interface Project {
   name: string
   slug: string
   description: string | null
+  external_landing_url: string | null
   currency: string
   funding_goal: number
   average_pledge: number
   launch_date: string | null
+  created_at: string
+}
+
+export interface PageCheck {
+  key: string
+  label: string
+  passed: boolean
+  weight: number
+  recommendation: string
+}
+
+export interface PageAnalysis {
+  id: number
+  url: string
+  score: number
+  checks: PageCheck[]
+  summary: string | null
   created_at: string
 }
 

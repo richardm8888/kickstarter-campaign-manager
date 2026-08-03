@@ -99,6 +99,7 @@ function NewProjectCard({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('')
   const [goal, setGoal] = useState('25000')
   const [pledge, setPledge] = useState('45')
+  const [launchDate, setLaunchDate] = useState('')
 
   const mutation = useMutation({
     mutationFn: createProject,
@@ -116,6 +117,7 @@ function NewProjectCard({ onDone }: { onDone: () => void }) {
       name,
       funding_goal: Math.round(Number(goal || '0') * 100),
       average_pledge: Math.round(Number(pledge || '0') * 100),
+      launch_date: launchDate || null,
     })
   }
 
@@ -161,6 +163,18 @@ function NewProjectCard({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setPledge(e.target.value)}
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project-launch">Planned launch date</Label>
+            <Input
+              id="project-launch"
+              type="date"
+              value={launchDate}
+              onChange={(e) => setLaunchDate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional — drives your countdown and pacing advice. You can change it any time.
+            </p>
           </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={mutation.isPending}>

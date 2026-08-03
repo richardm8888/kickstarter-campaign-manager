@@ -43,6 +43,17 @@ class CampaignHealthScorer
 
     private function landingPage(Project $project): HealthFactor
     {
+        // A creator using their own page is scored on its latest analysis.
+        if ($project->usesExternalLandingPage()) {
+            $analysis = $project->landingPageAnalyses()->latest()->first();
+
+            return new HealthFactor('landing_page', 'Landing page', $analysis?->score ?? 0, 20, match (true) {
+                $analysis === null => 'Analyse your landing page so we can score it and suggest fixes.',
+                $analysis->score >= 80 => 'Your landing page covers the essentials. Keep testing the headline.',
+                default => $analysis->summary ?? 'Work through the failed checks on your landing page.',
+            });
+        }
+
         $page = $project->landingPage()->with('sections')->first();
 
         $score = match (true) {

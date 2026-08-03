@@ -10,6 +10,7 @@ import {
   LogOut,
   PanelsTopLeft,
   Rocket,
+  Settings,
   TrendingUp,
 } from 'lucide-react'
 import { getProject } from '@/features/projects/api'
@@ -24,6 +25,7 @@ const NAV = [
   { to: '/projects/$projectId/forecast', label: 'Forecast', icon: TrendingUp },
   { to: '/projects/$projectId/landing-page', label: 'Landing page', icon: PanelsTopLeft },
   { to: '/projects/$projectId/integrations', label: 'Integrations', icon: Cable },
+  { to: '/projects/$projectId/settings', label: 'Settings', icon: Settings },
 ] as const
 
 export function ProjectLayout() {

@@ -25,6 +25,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'external_landing_url' => ['nullable', 'url', 'max:255'],
             'currency' => ['nullable', 'string', 'size:3'],
             'funding_goal' => ['nullable', 'integer', 'min:0'],
             'average_pledge' => ['nullable', 'integer', 'min:0'],
@@ -52,6 +53,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'external_landing_url' => ['nullable', 'url', 'max:255'],
             'currency' => ['sometimes', 'string', 'size:3'],
             'funding_goal' => ['sometimes', 'integer', 'min:0'],
             'average_pledge' => ['sometimes', 'integer', 'min:0'],
