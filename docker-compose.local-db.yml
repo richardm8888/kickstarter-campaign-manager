@@ -1,0 +1,37 @@
+# Overlay adding a bundled Postgres container for hosts without a managed
+# database. Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.local-db.yml up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-launch_os}
+      POSTGRES_USER: ${DB_USERNAME:-launch_os}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-launch_os}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-launch_os}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  queue:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  scheduler:
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

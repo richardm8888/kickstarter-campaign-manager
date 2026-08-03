@@ -1,0 +1,93 @@
+# Base stack: API, queue worker, scheduler, frontend.
+#
+# Database options:
+#   - Managed Postgres (e.g. DigitalOcean): set DB_URL in .env and run
+#       docker compose up -d --build
+#   - Bundled Postgres container: leave DB_URL empty and run
+#       docker compose -f docker-compose.yml -f docker-compose.local-db.yml up -d --build
+
+# Cap container logs so they can't fill a small droplet's disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  backend:
+    # backend, queue and scheduler share one image so it is built once,
+    # not three times. IMAGE_PREFIX can point at a registry to pull
+    # prebuilt images instead of building on the host.
+    image: ${IMAGE_PREFIX:-launch-os}-backend:${TAG:-latest}
+    build: ./backend
+    restart: unless-stopped
+    logging: *default-logging
+    environment: &laravel-env
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?run `openssl rand -base64 32 | sed 's/^/base64:/'` and set APP_KEY in .env}
+      APP_URL: ${APP_URL:-http://localhost}
+      DB_CONNECTION: pgsql
+      # A full connection string (managed database) takes precedence over
+      # the individual settings below, which default to the bundled db.
+      DB_URL: ${DB_URL:-}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-launch_os}
+      DB_USERNAME: ${DB_USERNAME:-launch_os}
+      DB_PASSWORD: ${DB_PASSWORD:-launch_os}
+      QUEUE_CONNECTION: database
+      CACHE_STORE: database
+      SESSION_DRIVER: database
+      LOG_CHANNEL: stderr
+      # Concurrent PHP request workers. Each is ~40-80 MB of RAM; lower
+      # this on a small droplet, raise it if you have headroom.
+      PHP_CLI_SERVER_WORKERS: ${PHP_WORKERS:-4}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # Laravel's built-in health endpoint; start_period covers first-boot
+    # migrations so a slow start isn't reported as a failure.
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/up"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+
+  queue:
+    image: ${IMAGE_PREFIX:-launch-os}-backend:${TAG:-latest}
+    restart: unless-stopped
+    logging: *default-logging
+    command: php artisan queue:work --tries=3
+    environment: *laravel-env
+    # Wait for migrations (backend healthy) before processing jobs.
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  scheduler:
+    image: ${IMAGE_PREFIX:-launch-os}-backend:${TAG:-latest}
+    restart: unless-stopped
+    logging: *default-logging
+    command: php artisan schedule:work
+    environment: *laravel-env
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    image: ${IMAGE_PREFIX:-launch-os}-frontend:${TAG:-latest}
+    build: ./frontend
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      # 8080 by default so the stack can coexist with another app already
+      # holding port 80 on the same host.
+      - "${HTTP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    depends_on:
+      - backend

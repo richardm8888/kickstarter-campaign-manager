@@ -107,6 +107,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cron Secret
+    |--------------------------------------------------------------------------
+    |
+    | Shared secret for the /api/internal/run-sync endpoint, used by an
+    | external scheduler (e.g. a GitHub Actions cron) on hosts that don't
+    | run the Laravel scheduler as an always-on process.
+    |
+    */
+
+    'cron_secret' => env('CRON_SECRET'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Maintenance Mode Driver
     |--------------------------------------------------------------------------
     |

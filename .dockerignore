@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/vendor
+frontend/dist
+backend/storage/logs/*
+backend/database/*.sqlite
+backend/.env
