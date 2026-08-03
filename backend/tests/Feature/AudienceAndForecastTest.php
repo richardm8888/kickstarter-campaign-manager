@@ -188,4 +188,115 @@ class AudienceAndForecastTest extends TestCase
             $project->fresh()->forecast_assumptions,
         );
     }
+
+    public function test_confidence_reflects_sample_size_not_just_presence_of_data(): void
+    {
+        $project = Project::factory()->create(['average_pledge' => 5000]);
+
+        // Real figures, but from far too little traffic to trust.
+        $this->record($project, 'cpc', 0.04);
+        $this->record($project, 'ad_clicks', 70, ['ad_id' => '1']);
+        $this->record($project, 'ad_leads', 2, ['ad_id' => '1']);
+
+        Sanctum::actingAs($project->user);
+
+        $this->getJson("/api/projects/{$project->id}/forecast")
+            ->assertOk()
+            ->assertJsonPath('confidence', 'low');
+    }
+
+    public function test_confidence_rises_once_there_is_enough_traffic(): void
+    {
+        $project = Project::factory()->create(['average_pledge' => 5000]);
+
+        $this->record($project, 'cpc', 0.50);
+        $this->record($project, 'ad_clicks', 900, ['ad_id' => '1']);
+        $this->record($project, 'ad_leads', 120, ['ad_id' => '1']);
+
+        Sanctum::actingAs($project->user);
+
+        $this->getJson("/api/projects/{$project->id}/forecast")
+            ->assertOk()
+            ->assertJsonPath('confidence', 'high');
+    }
+
+    public function test_a_poor_conversion_rate_is_flagged_as_the_thing_to_fix(): void
+    {
+        $project = Project::factory()->create(['average_pledge' => 5000]);
+
+        // Cheap clicks, 2.9% of them subscribing.
+        $this->record($project, 'cpc', 0.04);
+        $this->record($project, 'ad_clicks', 1000, ['ad_id' => '1']);
+        $this->record($project, 'ad_leads', 29, ['ad_id' => '1']);
+
+        Sanctum::actingAs($project->user);
+
+        $response = $this->getJson("/api/projects/{$project->id}/forecast")->assertOk();
+
+        $this->assertSame('good', $response->json('ratings.cpc.rating'));
+        $this->assertSame('danger', $response->json('ratings.conversion.rating'));
+
+        $this->assertSame('critical', $response->json('focus.severity'));
+        $this->assertStringContainsString('2.9%', $response->json('focus.title'));
+        // Cheap traffic means the page, not the ads, is the opportunity.
+        $this->assertStringContainsString('the page', $response->json('focus.body'));
+    }
+
+    public function test_expensive_clicks_are_flagged_when_the_page_converts_well(): void
+    {
+        $project = Project::factory()->create(['average_pledge' => 5000]);
+
+        $this->record($project, 'cpc', 1.80);
+        $this->record($project, 'ad_clicks', 1000, ['ad_id' => '1']);
+        $this->record($project, 'ad_leads', 150, ['ad_id' => '1']);
+
+        Sanctum::actingAs($project->user);
+
+        $response = $this->getJson("/api/projects/{$project->id}/forecast")->assertOk();
+
+        $this->assertSame('danger', $response->json('ratings.cpc.rating'));
+        $this->assertSame('good', $response->json('ratings.conversion.rating'));
+        $this->assertStringContainsString('Clicks cost', $response->json('focus.title'));
+    }
+
+    public function test_it_states_the_numbers_needed_and_how_likely_they_are(): void
+    {
+        // £10,000 goal, £50 pledge, no list, £1 clicks.
+        $project = Project::factory()->create(['average_pledge' => 5000, 'funding_goal' => 1000000]);
+        $this->record($project, 'cpc', 1.0);
+        $this->record($project, 'ad_clicks', 1000, ['ad_id' => '1']);
+        $this->record($project, 'ad_leads', 200, ['ad_id' => '1']);
+
+        Sanctum::actingAs($project->user);
+
+        $response = $this->getJson("/api/projects/{$project->id}/forecast?planned_ad_spend=100000")
+            ->assertOk();
+
+        // 200 backers needed; £1,000 buys 1,000 visitors.
+        $this->assertSame(200, $response->json('requirements.backers_needed'));
+        $this->assertSame(1000, $response->json('requirements.visitors_bought'));
+
+        // At the 15% planning rate that needs 1,334 subscribers from 1,000
+        // visitors — more than one each, so plainly unrealistic.
+        $this->assertSame('unrealistic', $response->json('requirements.required_conversion.likelihood'));
+
+        // Holding conversion at 20%, the 200-strong list would all have to back.
+        $this->assertEquals(1.0, $response->json('requirements.required_backer_rate.rate'));
+        $this->assertSame('unrealistic', $response->json('requirements.required_backer_rate.likelihood'));
+    }
+
+    public function test_a_comfortable_budget_reads_as_likely(): void
+    {
+        $project = Project::factory()->create(['average_pledge' => 5000, 'funding_goal' => 100000]);
+        $this->record($project, 'cpc', 0.50);
+        $this->record($project, 'ad_clicks', 1000, ['ad_id' => '1']);
+        $this->record($project, 'ad_leads', 200, ['ad_id' => '1']);
+
+        Sanctum::actingAs($project->user);
+
+        $response = $this->getJson("/api/projects/{$project->id}/forecast?planned_ad_spend=500000")
+            ->assertOk();
+
+        $this->assertSame('likely', $response->json('requirements.required_backer_rate.likelihood'));
+    }
 }

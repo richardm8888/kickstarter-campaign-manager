@@ -86,6 +86,29 @@ class ForecastEngine
         return (int) round($visitorsNeeded * $input->cpc * 100);
     }
 
+    /**
+     * How much the forecast can be trusted.
+     *
+     * Having a number is not the same as having a reliable one: a rate
+     * measured from a handful of clicks is noise. Confidence therefore
+     * turns on sample size, not merely on whether data exists.
+     */
+    private function dataQuality(Project $project, bool $cpcMeasured, bool $conversionMeasured): float
+    {
+        if (! $cpcMeasured || ! $conversionMeasured) {
+            return 0.2;
+        }
+
+        $clicks = $this->series->sum($project, 'ad_clicks', 30);
+        $signups = $this->series->sum($project, 'ad_leads', 30);
+
+        return match (true) {
+            $clicks >= 500 && $signups >= 30 => 1.0,
+            $clicks >= 100 && $signups >= 10 => 0.6,
+            default => 0.2,
+        };
+    }
+
     /** Whether cost per click came from this account's own ads. */
     public function hasMeasuredCpc(Project $project): bool
     {
@@ -96,6 +119,74 @@ class ForecastEngine
     public function hasMeasuredConversion(Project $project): bool
     {
         return $this->observedSignupRate($project) !== null;
+    }
+
+    /**
+     * What has to be true for the planned budget to fund the goal, and how
+     * realistic each of those is.
+     *
+     * Two levers, holding the other still: the share of visitors who
+     * subscribe, and the share of subscribers who back. Stating both makes
+     * the bet explicit — "this works if a third of your list backs you" is
+     * a very different proposition from "this works if 8% do".
+     */
+    public function requirements(Project $project, ?int $plannedAdSpend = null): array
+    {
+        $input = $this->inputFor($project, $plannedAdSpend);
+
+        if ($input->averagePledge <= 0 || $input->fundingGoal <= 0) {
+            return [];
+        }
+
+        $backersNeeded = (int) ceil($input->fundingGoal / $input->averagePledge);
+        $visitors = $input->cpc > 0 ? (int) floor($input->plannedAdSpend / 100 / $input->cpc) : 0;
+
+        // Conversion needed, if the list backs at the planning rate.
+        $subscribersNeeded = (int) ceil($backersNeeded / self::PLANNING_RATE);
+        $newSubscribersNeeded = max(0, $subscribersNeeded - $input->emailSubscribers);
+        $requiredConversion = $visitors > 0 ? $newSubscribersNeeded / $visitors : null;
+
+        // Backer rate needed, if conversion stays where it is measured.
+        $projectedList = $input->emailSubscribers + (int) floor($visitors * $input->visitorToSubscriberRate);
+        $requiredBackerRate = $projectedList > 0 ? $backersNeeded / $projectedList : null;
+
+        return [
+            'backers_needed' => $backersNeeded,
+            'subscribers_needed' => $subscribersNeeded,
+            'projected_list' => $projectedList,
+            'visitors_bought' => $visitors,
+            'required_conversion' => $requiredConversion === null ? null : [
+                'rate' => round($requiredConversion, 4),
+                'current' => $input->visitorToSubscriberRate,
+                'likelihood' => $this->conversionLikelihood($requiredConversion, $input->visitorToSubscriberRate),
+            ],
+            'required_backer_rate' => $requiredBackerRate === null ? null : [
+                'rate' => round($requiredBackerRate, 4),
+                'likelihood' => $this->backerRateLikelihood($requiredBackerRate),
+            ],
+        ];
+    }
+
+    /** Judged against what this project already achieves, and what is achievable at all. */
+    private function conversionLikelihood(float $required, float $current): string
+    {
+        return match (true) {
+            $required <= $current => 'already there',
+            $required <= 0.10 => 'plausible',
+            $required <= 0.25 => 'a stretch',
+            default => 'unrealistic',
+        };
+    }
+
+    /** Judged against the scenario range: 30% is the top of what a warmed list does. */
+    private function backerRateLikelihood(float $required): string
+    {
+        return match (true) {
+            $required <= 0.10 => 'likely',
+            $required <= 0.20 => 'plausible',
+            $required <= 0.30 => 'a stretch',
+            default => 'unrealistic',
+        };
     }
 
     private function withBackerRate(ForecastInput $input, float $rate): ForecastInput
@@ -177,12 +268,6 @@ class ForecastEngine
         $observedCpc = $this->series->latest($project, 'cpc', 'meta');
         $observedConversion = $this->observedSignupRate($project);
 
-        $observed = [
-            $subscribers > 0,
-            $observedCpc !== null,
-            $observedConversion !== null,
-            $project->average_pledge > 0,
-        ];
 
         // Assumptions the creator saved take precedence over both observed
         // data and benchmarks — they know things the data does not.
@@ -198,7 +283,11 @@ class ForecastEngine
             vipToBackerRate: (float) $defaults['vip_to_backer_rate'],
             averagePledge: $project->average_pledge > 0 ? $project->average_pledge : 45_00,
             fundingGoal: $project->funding_goal,
-            dataCompleteness: count(array_filter($observed)) / count($observed),
+            dataCompleteness: $this->dataQuality(
+                $project,
+                $observedCpc !== null,
+                $observedConversion !== null,
+            ),
         );
     }
 

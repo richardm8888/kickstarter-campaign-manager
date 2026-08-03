@@ -215,8 +215,25 @@ export interface ForecastScenario {
   funds_the_goal: boolean
 }
 
+export interface FunnelRating {
+  rating: 'good' | 'warning' | 'danger'
+  note: string
+}
+
+export interface ForecastRequirements {
+  backers_needed: number
+  subscribers_needed: number
+  projected_list: number
+  visitors_bought: number
+  required_conversion: { rate: number; current: number; likelihood: string } | null
+  required_backer_rate: { rate: number; likelihood: string } | null
+}
+
 export interface ForecastReport {
   scenarios: ForecastScenario[]
+  requirements: ForecastRequirements | []
+  ratings: { cpc: FunnelRating; conversion: FunnelRating }
+  focus: { severity: string; title: string; body: string; action: string } | null
   planning_rate: number
   recommended_budget: number
   confidence: 'low' | 'medium' | 'high'

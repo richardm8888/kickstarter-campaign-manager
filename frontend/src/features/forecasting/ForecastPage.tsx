@@ -13,6 +13,71 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { money, number, percent } from '@/lib/format'
 
+import type { FunnelRating } from '@/lib/types'
+
+const RATING_COLOR: Record<FunnelRating['rating'], string> = {
+  good: 'var(--status-good)',
+  warning: 'var(--status-warning)',
+  danger: 'var(--status-critical)',
+}
+
+/** A measured figure, coloured by whether it is healthy. */
+function Rated({ label, value, rating, estimated }: {
+  label: string
+  value: string
+  rating: FunnelRating
+  estimated: boolean
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-muted-foreground">
+        {label}
+        <span className="block text-xs">{rating.note}</span>
+      </dt>
+      <dd className="shrink-0 tabular-nums font-medium" style={{ color: RATING_COLOR[rating.rating] }}>
+        {value}
+        {estimated && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(typical)</span>}
+      </dd>
+    </div>
+  )
+}
+
+const LIKELIHOOD_STYLE: Record<string, string> = {
+  'already there': 'success',
+  likely: 'success',
+  plausible: 'default',
+  'a stretch': 'warning',
+  unrealistic: 'destructive',
+}
+
+/** A number that must be hit, with how realistic that is. */
+function Requirement({ label, value, detail, likelihood }: {
+  label: string
+  value: string
+  detail: string
+  likelihood: string
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{detail}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-lg font-semibold tabular-nums">{value}</span>
+        <Badge
+          variant={
+            (LIKELIHOOD_STYLE[likelihood] ?? 'default') as
+              'success' | 'default' | 'warning' | 'destructive'
+          }
+        >
+          {likelihood}
+        </Badge>
+      </div>
+    </div>
+  )
+}
+
 export function ForecastPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }
   const [spend, setSpend] = useState<string | null>(null)
@@ -47,7 +112,8 @@ export function ForecastPage() {
     )
   }
 
-  const { measured, scenarios, recommended_budget: recommended } = data
+  const { measured, scenarios, recommended_budget: recommended, focus } = data
+  const requirements = Array.isArray(data.requirements) ? null : data.requirements
   const plannedSpend = Math.round(Number(spend || '0') * 100)
   const worstCase = scenarios[0]
   const enough = worstCase?.funds_the_goal ?? false
@@ -61,6 +127,25 @@ export function ForecastPage() {
           {data.confidence} confidence
         </Badge>
       </PageHeader>
+
+      {focus && (
+        <div
+          className={cn(
+            'mb-4 rounded-lg border-l-2 bg-muted/40 p-4',
+            focus.severity === 'critical'
+              ? 'border-l-[color:var(--status-critical)]'
+              : focus.severity === 'warning'
+                ? 'border-l-[color:var(--status-warning)]'
+                : 'border-l-[color:var(--viz-series-1)]',
+          )}
+        >
+          <p className="text-sm font-medium">{focus.title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{focus.body}</p>
+          <p className="mt-1.5 text-sm">
+            <span className="font-medium">Do this:</span> {focus.action}
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="flex flex-col gap-4 lg:col-span-2">
@@ -100,24 +185,18 @@ export function ForecastPage() {
             </CardHeader>
             <CardContent>
               <dl className="flex flex-col gap-2 text-sm">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Cost per click</dt>
-                  <dd className="tabular-nums">
-                    {money(Math.round(measured.cpc * 100))}
-                    {!measured.cpc_measured && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">(typical)</span>
-                    )}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Visitors who subscribe</dt>
-                  <dd className="tabular-nums">
-                    {percent(measured.visitor_to_subscriber_rate * 100)}
-                    {!measured.conversion_measured && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">(typical)</span>
-                    )}
-                  </dd>
-                </div>
+                <Rated
+                  label="Cost per click"
+                  value={money(Math.round(measured.cpc * 100))}
+                  rating={data.ratings.cpc}
+                  estimated={!measured.cpc_measured}
+                />
+                <Rated
+                  label="Visitors who subscribe"
+                  value={percent(measured.visitor_to_subscriber_rate * 100)}
+                  rating={data.ratings.conversion}
+                  estimated={!measured.conversion_measured}
+                />
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Email list now</dt>
                   <dd className="tabular-nums">{number(measured.email_subscribers)}</dd>
@@ -173,6 +252,44 @@ export function ForecastPage() {
               )}
             </CardContent>
           </Card>
+
+          {requirements && (
+            <Card>
+              <CardHeader>
+                <CardTitle>What has to happen</CardTitle>
+                <CardDescription>
+                  For {money(plannedSpend)} to fund {money(measured.funding_goal)}.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <p className="text-sm">
+                  You need <span className="font-medium">{number(requirements.backers_needed)} backers</span>,
+                  which means a list of about{' '}
+                  <span className="font-medium">{number(requirements.subscribers_needed)}</span> at the
+                  {' '}{percent(data.planning_rate * 100, 0)} planning rate. Your budget buys about{' '}
+                  {number(requirements.visitors_bought)} visitors.
+                </p>
+
+                {requirements.required_conversion && (
+                  <Requirement
+                    label="Visitors who must subscribe"
+                    value={percent(requirements.required_conversion.rate * 100)}
+                    detail={`you're at ${percent(requirements.required_conversion.current * 100)}`}
+                    likelihood={requirements.required_conversion.likelihood}
+                  />
+                )}
+
+                {requirements.required_backer_rate && (
+                  <Requirement
+                    label="Your list who must back"
+                    value={percent(requirements.required_backer_rate.rate * 100)}
+                    detail={`from a list of ${number(requirements.projected_list)}`}
+                    likelihood={requirements.required_backer_rate.likelihood}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

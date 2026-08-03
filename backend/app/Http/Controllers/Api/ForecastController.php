@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Forecasting\ForecastEngine;
+use App\Forecasting\FunnelRating;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -19,7 +20,10 @@ class ForecastController extends Controller
 {
     use AuthorizesRequests;
 
-    public function __construct(private readonly ForecastEngine $engine) {}
+    public function __construct(
+        private readonly ForecastEngine $engine,
+        private readonly FunnelRating $ratings,
+    ) {}
 
     public function show(Request $request, Project $project): JsonResponse
     {
@@ -33,8 +37,21 @@ class ForecastController extends Controller
         $input = $this->engine->inputFor($project, $plannedAdSpend);
         $recommended = $this->engine->recommendedBudget($project);
 
+        $cpcMeasured = $this->engine->hasMeasuredCpc($project);
+        $conversionMeasured = $this->engine->hasMeasuredConversion($project);
+
         return response()->json([
             'scenarios' => $this->engine->scenarios($project, $plannedAdSpend),
+            'requirements' => $this->engine->requirements($project, $plannedAdSpend),
+            'ratings' => [
+                'cpc' => $this->ratings->cpc($input->cpc),
+                'conversion' => $this->ratings->conversion($input->visitorToSubscriberRate),
+            ],
+            'focus' => $this->ratings->focus(
+                $input->cpc,
+                $input->visitorToSubscriberRate,
+                $cpcMeasured && $conversionMeasured,
+            ),
             'planning_rate' => ForecastEngine::PLANNING_RATE,
             'recommended_budget' => $recommended,
             'measured' => [
@@ -46,8 +63,8 @@ class ForecastController extends Controller
                 'average_pledge' => $input->averagePledge,
                 'funding_goal' => $input->fundingGoal,
                 // Which figures came from this account rather than benchmarks.
-                'cpc_measured' => $this->engine->hasMeasuredCpc($project),
-                'conversion_measured' => $this->engine->hasMeasuredConversion($project),
+                'cpc_measured' => $cpcMeasured,
+                'conversion_measured' => $conversionMeasured,
             ],
             'confidence' => $this->engine->forecast($input)->confidence,
         ]);
