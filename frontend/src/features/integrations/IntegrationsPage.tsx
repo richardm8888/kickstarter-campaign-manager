@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { MailerLiteGroupPicker } from './MailerLiteGroupPicker'
 import { ApiError } from '@/lib/api'
 import type { IntegrationStatus } from '@/lib/types'
 
@@ -145,6 +146,10 @@ function IntegrationCard({ projectId, integration }: {
             )}
           </div>
         </div>
+
+        {integration.provider === 'mailerlite' && integration.status === 'connected' && (
+          <MailerLiteGroupPicker projectId={projectId} />
+        )}
 
         {open && integration.status !== 'connected' && (
           <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4 border-t border-border pt-4" noValidate>

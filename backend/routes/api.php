@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InsightController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\LandingPageController;
+use App\Http\Controllers\Api\MailerLiteGroupController;
 use App\Http\Controllers\Api\PageAnalysisController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
@@ -65,6 +66,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/insights/{insight}/acknowledge', [InsightController::class, 'acknowledge']);
 
         Route::get('/integrations', [IntegrationController::class, 'index']);
+        Route::get('/integrations/mailerlite/groups', [MailerLiteGroupController::class, 'index']);
+        Route::put('/integrations/mailerlite/group', [MailerLiteGroupController::class, 'update']);
         Route::post('/integrations/{provider}/connect', [IntegrationController::class, 'connect']);
         Route::delete('/integrations/{provider}', [IntegrationController::class, 'disconnect']);
         Route::post('/integrations/{provider}/sync', [IntegrationController::class, 'sync']);

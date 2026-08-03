@@ -242,6 +242,10 @@ docker compose exec backend php artisan meta:import-leads
 
 The Meta token needs the `leads_retrieval` permission for this.
 
+Choose which MailerLite group imported contacts join on the Integrations
+screen — automations and segments are usually built around groups, so this
+is what makes the imported list actionable.
+
 Every answer the form collected travels with the contact, plus `lead_id`
 (Meta's own id) and `lead_source` (the form's answer if it asks, otherwise
 the campaign name). Question names become snake_case keys — "Lead Source"
