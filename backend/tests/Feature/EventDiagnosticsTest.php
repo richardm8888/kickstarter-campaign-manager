@@ -49,7 +49,7 @@ class EventDiagnosticsTest extends TestCase
                 ['action_type' => 'landing_page_view', 'value' => '123'],
                 ['action_type' => 'view_content', 'value' => '7'],
                 ['action_type' => 'offsite_conversion.fb_pixel_view_content', 'value' => '7'],
-                ['action_type' => 'lead', 'value' => '2'],
+                ['action_type' => 'leadgen_grouped', 'value' => '2'],
             ],
         ]]])]);
 

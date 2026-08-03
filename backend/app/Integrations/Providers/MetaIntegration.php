@@ -10,18 +10,27 @@ use Illuminate\Support\Facades\Log;
 class MetaIntegration extends BaseIntegration
 {
     /**
-     * Meta reports conversions under several action types depending on
-     * whether they were attributed to the pixel, the site or an on-site
-     * event, so each of ours accepts a family of names.
+     * Email signups: an Instant Form submission, which is an address the
+     * creator owns and can mail at launch.
+     *
+     * The generic "lead" action type is deliberately absent — Meta uses it
+     * as an umbrella over both form submissions and pixel leads, so counting
+     * it would conflate an owned contact with a Kickstarter follow.
      */
     public const LEAD_ACTIONS = [
-        'lead',
-        'offsite_conversion.fb_pixel_lead',
+        'leadgen_grouped',
         'onsite_conversion.lead_grouped',
         'onsite_web_lead',
-        'leadgen_grouped',
+    ];
+
+    /**
+     * Kickstarter follows: a pixel Lead fired on the pre-launch page when
+     * someone taps "Notify me on launch". Valuable, but Kickstarter owns
+     * the relationship, so it is never counted as a signup.
+     */
+    public const FOLLOW_ACTIONS = [
+        'offsite_conversion.fb_pixel_lead',
         'offsite_conversion.fb_pixel_complete_registration',
-        'complete_registration',
     ];
 
     public const VIEW_CONTENT_ACTIONS = [
@@ -37,16 +46,6 @@ class MetaIntegration extends BaseIntegration
      */
     public const LANDING_PAGE_VIEW_ACTIONS = ['landing_page_view'];
 
-    /**
-     * Instant Form submissions — an email address the creator owns and can
-     * mail directly. Distinct from a pixel "Lead" fired on someone else's
-     * page (see follow_actions), which is a following, not a contact.
-     */
-    public const FORM_LEAD_ACTIONS = [
-        'leadgen_grouped',
-        'onsite_conversion.lead_grouped',
-        'onsite_web_lead',
-    ];
 
     public function provider(): string
     {
@@ -124,11 +123,6 @@ class MetaIntegration extends BaseIntegration
             $days = $this->paginate($url, $query + ['fields' => $baseFields]);
         }
 
-        $followActions = $this->actionTypesFor('follow');
-        $viewContentActions = $this->actionTypesFor('view_content');
-
-        // Anything claimed as a follow is not also counted as a signup.
-        $leadActions = array_values(array_diff($this->actionTypesFor('lead'), $followActions));
 
         $rows = [];
         $accountTotals = [];
@@ -139,10 +133,10 @@ class MetaIntegration extends BaseIntegration
             $spend = (float) ($row['spend'] ?? 0);
             $impressions = (float) ($row['impressions'] ?? 0);
             $clicks = (float) ($row['clicks'] ?? 0);
-            $leads = $this->countActions($row['actions'] ?? [], $leadActions);
-            $viewContent = $this->countActions($row['actions'] ?? [], $viewContentActions);
+            $leads = $this->countActions($row['actions'] ?? [], self::LEAD_ACTIONS);
+            $viewContent = $this->countActions($row['actions'] ?? [], self::VIEW_CONTENT_ACTIONS);
             $landingPageViews = $this->countActions($row['actions'] ?? [], self::LANDING_PAGE_VIEW_ACTIONS);
-            $follows = $this->countActions($row['actions'] ?? [], $followActions);
+            $follows = $this->countActions($row['actions'] ?? [], self::FOLLOW_ACTIONS);
 
             $dimensions = [
                 'ad_id' => (string) ($row['ad_id'] ?? 'unknown'),
@@ -226,25 +220,6 @@ class MetaIntegration extends BaseIntegration
         $configured = (int) ($this->record()->settings['insights_days'] ?? 0);
 
         return $configured > 0 ? min($configured, 365) : 90;
-    }
-
-    /** Action types this project treats as each conversion, overridable per project. */
-    private function actionTypesFor(string $event): array
-    {
-        $configured = $this->record()->settings["{$event}_actions"] ?? null;
-
-        if (is_array($configured)) {
-            return $configured;
-        }
-
-        return match ($event) {
-            'lead' => self::LEAD_ACTIONS,
-            'view_content' => self::VIEW_CONTENT_ACTIONS,
-            // Opt-in: only set when a creator sends traffic to a Kickstarter
-            // page, where a pixel "Lead" means a follow rather than a contact.
-            'follow' => [],
-            default => [],
-        };
     }
 
     /**

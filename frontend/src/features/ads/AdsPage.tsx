@@ -3,7 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
 import { getAds, getEventSetup } from './api'
-import { EventSetupGuide } from './EventSetupGuide'
+import { CampaignSetupGuide } from './CampaignSetupGuide'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -120,7 +120,7 @@ export function AdsPage() {
 
       {setup && (
         <div className="mb-4">
-          <EventSetupGuide setup={setup} projectId={projectId} />
+          <CampaignSetupGuide setup={setup} />
         </div>
       )}
 

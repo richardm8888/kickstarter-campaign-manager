@@ -3,7 +3,6 @@ import { Check, ChevronDown, Copy, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { ActionTypeMapper } from './ActionTypeMapper'
 import { cn } from '@/lib/utils'
 import type { EventSetup } from '@/lib/types'
 
@@ -17,13 +16,6 @@ document,'script','https://connect.facebook.net/en_US/fbevents.js');
 
 fbq('init', 'YOUR_PIXEL_ID');
 fbq('track', 'PageView');
-</script>`
-
-const VIEW_CONTENT_SNIPPET = `<!-- Fires when the landing page is viewed -->
-<script>
-  fbq('track', 'ViewContent', {
-    content_name: 'Launch landing page'
-  });
 </script>`
 
 const LEAD_SNIPPET = `<!-- Fire after the email form is submitted successfully -->
@@ -84,11 +76,27 @@ function EventStatus({ detected, children }: { detected: boolean; children: Reac
   )
 }
 
+function Campaign({ number, title, children }: {
+  number: number
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <p className="text-sm font-semibold">
+        Campaign {number} — {title}
+      </p>
+      <div className="mt-2 flex flex-col gap-2 text-sm text-muted-foreground">{children}</div>
+    </div>
+  )
+}
+
 /**
- * Walks a creator through installing the pixel and the two events that
- * make ad judgement possible — and verifies each one against live data.
+ * The prescribed pre-launch ad setup. There is one right way to run this
+ * — two campaigns, two events — and the platform reads the results on that
+ * basis rather than adapting to arbitrary configurations.
  */
-export function EventSetupGuide({ setup, projectId }: { setup: EventSetup; projectId: string }) {
+export function CampaignSetupGuide({ setup }: { setup: EventSetup }) {
   const allDetected = setup.events.every((e) => e.detected)
   const [open, setOpen] = useState(!allDetected)
 
@@ -97,7 +105,7 @@ export function EventSetupGuide({ setup, projectId }: { setup: EventSetup; proje
       <CardHeader className="flex-row items-start justify-between space-y-0">
         <button type="button" className="text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           <CardTitle className="flex items-center gap-2">
-            Conversion events
+            Campaign setup
             {allDetected ? (
               <Badge variant="success">All set</Badge>
             ) : (
@@ -110,16 +118,13 @@ export function EventSetupGuide({ setup, projectId }: { setup: EventSetup; proje
           </CardTitle>
           <CardDescription className="mt-1">
             {allDetected
-              ? 'Both events are arriving — ads are being judged on signups.'
-              : 'Until Lead events arrive, ads can only be ranked by click cost, not by return.'}
+              ? 'Both events are arriving — ads are being judged on signups and follows.'
+              : 'Two campaigns, two events. Follow this and every number on this page becomes reliable.'}
           </CardDescription>
         </button>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        {/* Only worth asking about mappings once Meta is actually connected. */}
-        <ActionTypeMapper projectId={projectId} enabled={setup.meta_connected && !allDetected} />
-
         {setup.diagnostics.map((finding) => (
           <div
             key={finding.title}
@@ -152,39 +157,67 @@ export function EventSetupGuide({ setup, projectId }: { setup: EventSetup; proje
 
         {open && (
           <div className="flex flex-col gap-5 border-t border-border pt-4">
-            <ol className="flex flex-col gap-5">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium">Run exactly two campaigns</p>
+
+              <Campaign number={1} title="Collect email addresses">
+                <p>
+                  Objective <strong>Leads</strong>, conversion location <strong>Instant forms</strong>. Ask for
+                  the email only — every extra question costs you signups.
+                </p>
+                <p>
+                  These are contacts <em>you</em> own and can email whenever you like, which is why they are
+                  what your ads are scored on.
+                </p>
+              </Campaign>
+
+              <Campaign number={2} title="Build Kickstarter followers">
+                <p>
+                  Objective <strong>Traffic</strong>, destination your Kickstarter pre-launch page. Add your
+                  pixel ID in Kickstarter's project settings so the page reports back.
+                </p>
+                <p>
+                  A "Notify me on launch" tap fires <strong>Lead</strong> on that page. Kickstarter alerts
+                  followers the moment you go live, so they convert far better than a cold email — but
+                  Kickstarter owns the relationship, which is why we count them separately.
+                </p>
+              </Campaign>
+
+              <div className="rounded-lg border-l-2 border-l-[color:var(--status-warning)] bg-muted/40 p-3">
+                <p className="text-sm font-medium">Don't optimise for landing page views</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Meta buys whatever you ask for. Ask for page views and it finds the cheapest clickers it can,
+                  whether or not they ever sign up. Ads set that way are flagged below.
+                </p>
+              </div>
+            </div>
+
+            <ol className="flex flex-col gap-5 border-t border-border pt-4">
               <li className="flex flex-col gap-2">
-                <p className="text-sm font-medium">1. Create the pixel</p>
+                <p className="text-sm font-medium">1. Install the pixel</p>
                 <p className="text-sm text-muted-foreground">
-                  In Meta Events Manager choose <strong>Connect data sources → Web → Meta Pixel</strong>, name it
-                  after your project, then copy its ID. Paste the snippet into the <code>&lt;head&gt;</code> of
-                  every page, replacing <code>YOUR_PIXEL_ID</code>.
+                  Events Manager → <strong>Connect data sources → Web → Meta Pixel</strong>. Paste this into
+                  the <code>&lt;head&gt;</code> of every page, replacing <code>YOUR_PIXEL_ID</code>. Add the
+                  same ID to your Kickstarter pre-launch page settings.
                 </p>
                 <CopyBlock code={PIXEL_SNIPPET} label="pixel snippet" />
               </li>
 
               <li className="flex flex-col gap-2">
-                <p className="text-sm font-medium">2. Add the ViewContent event</p>
+                <p className="text-sm font-medium">2. Fire Lead on your own signup form</p>
                 <p className="text-sm text-muted-foreground">
-                  {setup.events[0]?.purpose}
-                </p>
-                <CopyBlock code={VIEW_CONTENT_SNIPPET} label="ViewContent snippet" />
-              </li>
-
-              <li className="flex flex-col gap-2">
-                <p className="text-sm font-medium">3. Add the Lead event</p>
-                <p className="text-sm text-muted-foreground">
-                  {setup.events[1]?.purpose} Fire it only after a successful submission, otherwise every page
-                  view counts as a signup and your cost per lead will look far better than it is.
+                  Only if you also collect emails on your own page. Fire it after a successful submission —
+                  fire it on page load and every visitor counts as a signup, making your cost per signup look
+                  far better than it is.
                 </p>
                 <CopyBlock code={LEAD_SNIPPET} label="Lead snippet" />
               </li>
 
               <li className="flex flex-col gap-2">
-                <p className="text-sm font-medium">4. Verify</p>
+                <p className="text-sm font-medium">3. Verify</p>
                 <p className="text-sm text-muted-foreground">
-                  Use the <strong>Meta Pixel Helper</strong> browser extension on your live page, then submit a
-                  test signup. Events appear in Events Manager within minutes, and here after the next hourly
+                  Use the <strong>Meta Pixel Helper</strong> extension on the live page, then submit a test
+                  signup. Events reach Events Manager within minutes and appear above after the next hourly
                   sync.
                 </p>
               </li>

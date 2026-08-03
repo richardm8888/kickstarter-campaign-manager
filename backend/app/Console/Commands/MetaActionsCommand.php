@@ -50,29 +50,23 @@ class MetaActionsCommand extends Command
             return self::SUCCESS;
         }
 
-        $settings = $project->integrations()->where('provider', 'meta')->first()?->settings ?? [];
-        $leadTypes = $settings['lead_actions'] ?? MetaIntegration::LEAD_ACTIONS;
-        $viewTypes = $settings['view_content_actions'] ?? MetaIntegration::VIEW_CONTENT_ACTIONS;
-
         $rows = array_map(fn (array $type) => [
             $type['action_type'],
             (int) $type['total'],
             match (true) {
-                in_array($type['action_type'], $leadTypes, true) => 'counted as signups',
-                in_array($type['action_type'], $viewTypes, true) => 'counted as page views',
-                default => '<comment>ignored</comment>',
+                in_array($type['action_type'], MetaIntegration::LEAD_ACTIONS, true) => 'signups',
+                in_array($type['action_type'], MetaIntegration::FOLLOW_ACTIONS, true) => 'Kickstarter follows',
+                in_array($type['action_type'], MetaIntegration::VIEW_CONTENT_ACTIONS, true) => 'page views',
+                in_array($type['action_type'], MetaIntegration::LANDING_PAGE_VIEW_ACTIONS, true) => 'page loads',
+                default => '<comment>not used</comment>',
             },
         ], $types);
 
         $this->table(['Meta action type', 'Total (14d)', 'How we use it'], $rows);
 
-        $ignored = array_filter($rows, fn (array $row) => str_contains($row[2], 'ignored'));
-
-        if ($ignored !== []) {
-            $this->newLine();
-            $this->line('Some conversions are being ignored. If one of them is your signup event, map it:');
-            $this->line('  php artisan meta:map --project='.$project->id.' --lead="<action type>"');
-        }
+        $this->newLine();
+        $this->line('Anything marked "not used" is deliberate — the platform reads a fixed');
+        $this->line('set of events. See the campaign setup guide on the Ads screen.');
 
         return self::SUCCESS;
     }
