@@ -17,6 +17,53 @@ export interface Project {
   created_at: string
 }
 
+export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning'
+
+export interface Ad {
+  ad_id: string
+  ad_name: string
+  adset_name: string | null
+  campaign_name: string | null
+  spend: number
+  impressions: number
+  clicks: number
+  leads: number
+  view_content: number
+  ctr: number | null
+  cpc: number | null
+  cpl: number | null
+  lead_rate: number | null
+  verdict: AdVerdict
+  verdict_label: string
+  reason: string
+  action: string
+}
+
+export interface AdReport {
+  days: number
+  has_lead_data: boolean
+  benchmark: {
+    total_spend: number
+    total_leads: number
+    account_cpl: number | null
+    affordable_cpl: number
+  }
+  ads: Ad[]
+}
+
+export interface EventSetup {
+  meta_connected: boolean
+  pixel_detected: boolean | null
+  events: Array<{
+    event: string
+    label: string
+    purpose: string
+    detected: boolean
+    total: number
+    last_seen: string | null
+  }>
+}
+
 export interface PageCheck {
   key: string
   label: string

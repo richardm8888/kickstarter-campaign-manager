@@ -8,6 +8,7 @@ import {
   HeartPulse,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   PanelsTopLeft,
   Rocket,
   Settings,
@@ -20,6 +21,7 @@ import { ThemeToggle } from './ThemeToggle'
 const NAV = [
   { to: '/projects/$projectId', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/projects/$projectId/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/projects/$projectId/ads', label: 'Ads', icon: Megaphone },
   { to: '/projects/$projectId/insights', label: 'AI insights', icon: Brain },
   { to: '/projects/$projectId/health', label: 'Campaign health', icon: HeartPulse },
   { to: '/projects/$projectId/forecast', label: 'Forecast', icon: TrendingUp },

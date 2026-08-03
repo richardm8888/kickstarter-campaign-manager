@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
@@ -67,6 +68,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/integrations/{provider}/connect', [IntegrationController::class, 'connect']);
         Route::delete('/integrations/{provider}', [IntegrationController::class, 'disconnect']);
         Route::post('/integrations/{provider}/sync', [IntegrationController::class, 'sync']);
+
+        Route::get('/ads', [AdsController::class, 'index']);
+        Route::get('/ads/events', [AdsController::class, 'events']);
 
         Route::get('/page-analyses', [PageAnalysisController::class, 'index']);
         Route::post('/page-analyses', [PageAnalysisController::class, 'store']);
