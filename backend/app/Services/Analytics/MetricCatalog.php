@@ -38,6 +38,12 @@ class MetricCatalog
         'cpm' => self::LEVEL,
         'ctr' => self::LEVEL,
         'email_subscribers' => self::LEVEL,
+        'email_form_contacts' => self::LEVEL,
+        'email_other_contacts' => self::LEVEL,
+        'email_form_open_rate' => self::LEVEL,
+        'email_other_open_rate' => self::LEVEL,
+        'email_form_click_rate' => self::LEVEL,
+        'email_other_click_rate' => self::LEVEL,
         'ks_followers' => self::LEVEL,
 
         'signups' => self::DELTA,

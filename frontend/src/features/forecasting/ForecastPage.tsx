@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { getForecast, previewForecast } from './api'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { getForecast, previewForecast, saveAssumptions } from './api'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { money, number, percent } from '@/lib/format'
-import type { Forecast } from '@/lib/types'
+import { Button } from '@/components/ui/button'
+import type { Forecast, ForecastInput } from '@/lib/types'
 
 interface Assumptions {
   planned_ad_spend: string
@@ -25,6 +26,10 @@ export function ForecastPage() {
 
   const [assumptions, setAssumptions] = useState<Assumptions | null>(null)
   const [preview, setPreview] = useState<Forecast | null>(null)
+
+  const save = useMutation({
+    mutationFn: (input: Partial<ForecastInput>) => saveAssumptions(projectId, input),
+  })
 
   useEffect(() => {
     if (base.data && assumptions === null) {
@@ -108,6 +113,22 @@ export function ForecastPage() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="f-pledge">Average pledge (£)</Label>
               <Input id="f-pledge" type="number" min="0" value={assumptions.average_pledge} onChange={set('average_pledge')} />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!payload || save.isPending}
+                onClick={() => payload && save.mutate(payload)}
+              >
+                {save.isPending ? 'Saving…' : 'Save as defaults'}
+              </Button>
+              {save.isSuccess && (
+                <span role="status" className="text-xs text-muted-foreground">
+                  {save.data.message}
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>

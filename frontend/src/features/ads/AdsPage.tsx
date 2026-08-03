@@ -58,7 +58,16 @@ function AdCard({ ad, hasLeadData }: { ad: Ad; hasLeadData: boolean }) {
           <Metric label="Spend" value={money(Math.round(ad.spend * 100))} />
           <Metric label="Clicks" value={number(ad.clicks)} />
           <Metric label="CPC" value={ad.cpc !== null ? money(Math.round(ad.cpc * 100)) : '—'} />
-          {ad.objective === 'traffic' ? (
+          {ad.follows > 0 ? (
+            <>
+              <Metric label="KS follows" value={number(ad.follows)} />
+              <Metric
+                label="Cost/follow"
+                value={ad.cost_per_follow !== null ? money(Math.round(ad.cost_per_follow * 100)) : '—'}
+              />
+              <Metric label="Signups" value={number(ad.leads)} />
+            </>
+          ) : ad.objective === 'traffic' ? (
             <>
               <Metric label="Page views" value={number(ad.landing_page_views)} />
               <Metric

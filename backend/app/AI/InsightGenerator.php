@@ -84,6 +84,10 @@ class InsightGenerator
             ];
         }
 
+        if ($cohort = $this->cohortEngagementSignal($project)) {
+            $signals[] = $cohort;
+        }
+
         if ($this->noSignupsInLastDay($project)) {
             $signals[] = [
                 'key' => 'no_signups_24h',
@@ -95,6 +99,49 @@ class InsightGenerator
         }
 
         return $signals;
+    }
+
+    /**
+     * Compares how Meta form leads engage against the rest of the list.
+     * A cheap lead that never opens an email is not cheap.
+     */
+    private function cohortEngagementSignal(Project $project): ?array
+    {
+        $formRate = $this->series->latest($project, 'email_form_open_rate');
+        $otherRate = $this->series->latest($project, 'email_other_open_rate');
+
+        if ($formRate === null || $otherRate === null || $otherRate <= 0.0) {
+            return null;
+        }
+
+        $difference = round(($formRate - $otherRate) / $otherRate * 100);
+
+        if (abs($difference) < 20) {
+            return null;
+        }
+
+        $worse = $difference < 0;
+
+        return [
+            'key' => 'form_lead_engagement',
+            'severity' => $worse ? 'warning' : 'success',
+            'title' => sprintf(
+                'Meta form leads open %s%% %s than your other subscribers',
+                abs($difference),
+                $worse ? 'less' : 'more',
+            ),
+            'body' => sprintf(
+                'Form leads open at %s%% against %s%% for everyone else. %s',
+                $formRate,
+                $otherRate,
+                $worse
+                    ? 'People who hand over an email inside Facebook often forget they did, so they need a warmer welcome than the rest of your list.'
+                    : 'That audience is engaged — worth more budget.',
+            ),
+            'action' => $worse
+                ? 'Send form leads a dedicated welcome email reminding them what they signed up for.'
+                : 'Shift more budget into the lead form campaigns.',
+        ];
     }
 
     private function alreadyRaisedToday(Project $project, string $key): bool

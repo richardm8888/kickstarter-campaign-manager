@@ -33,6 +33,10 @@ class AnalyticsController extends Controller
             ['metric' => 'email_opens', 'label' => 'Opens'],
             ['metric' => 'email_clicks', 'label' => 'Clicks'],
             ['metric' => 'email_unsubscribes', 'label' => 'Unsubscribes'],
+            ['metric' => 'email_form_open_rate', 'label' => 'Open rate — Meta form leads'],
+            ['metric' => 'email_other_open_rate', 'label' => 'Open rate — everyone else'],
+            ['metric' => 'email_form_click_rate', 'label' => 'Click rate — Meta form leads'],
+            ['metric' => 'email_other_click_rate', 'label' => 'Click rate — everyone else'],
         ],
         'revenue' => [
             ['metric' => 'revenue', 'label' => 'Revenue'],

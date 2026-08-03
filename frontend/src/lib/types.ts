@@ -34,6 +34,8 @@ export interface Ad {
   cpl: number | null
   cost_per_page_view: number | null
   landing_page_views: number
+  follows: number
+  cost_per_follow: number | null
   objective: 'signups' | 'traffic' | 'other'
   objective_label: string
   lead_rate: number | null

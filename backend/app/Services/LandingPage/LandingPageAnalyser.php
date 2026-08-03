@@ -109,7 +109,9 @@ class LandingPageAnalyser
                 'Serve over HTTPS. Browsers warn on insecure forms, which kills signups.'),
 
             new PageCheck('email_capture', 'Captures email addresses',
-                $has('//input[@type="email"]') || $has('//form//input[contains(@name, "mail")]'), 20,
+                $has('//input[@type="email"]')
+                    || $has('//form//input[contains(@name, "mail")]')
+                    || $this->hasEmbeddedFormScript($html), 20,
                 'Add an email capture form — your list is the single biggest predictor of day-one funding.'),
 
             new PageCheck('headline', 'Has a clear headline', $has('//h1'), 10,
@@ -146,6 +148,27 @@ class LandingPageAnalyser
             new PageCheck('fast', 'Responds quickly', $elapsedMs < 2000, 5,
                 'The page took over two seconds to respond. Slow pages lose paid traffic before it arrives.'),
         ];
+    }
+
+    /**
+     * Most email tools inject their form with JavaScript, so the markup we
+     * fetch has no <input> at all — only the embed script. Detecting the
+     * embed avoids telling a creator their working form does not exist.
+     */
+    private function hasEmbeddedFormScript(string $html): bool
+    {
+        return $this->mentionsAny($html, [
+            'mailerlite',        // ml-form, webforms.mailerlite.com, ml_webform
+            'ck.convertkit',
+            'convertkit',
+            'list-manage.com',   // Mailchimp
+            'mc-embedded',
+            'beehiiv',
+            'klaviyo',
+            'substack',
+            'omnisend',
+            'kickstarter.com/projects', // "Notify me" embed
+        ]);
     }
 
     private function mentionsAny(string $haystack, array $needles): bool

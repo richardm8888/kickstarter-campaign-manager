@@ -138,4 +138,27 @@ class LandingPageAnalysisTest extends TestCase
         $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
             ->assertForbidden();
     }
+
+    public function test_a_javascript_loaded_form_counts_as_email_capture(): void
+    {
+        // MailerLite (and most providers) inject the form at runtime, so the
+        // fetched markup contains only the embed script.
+        Http::fake(['https://example.com*' => Http::response(
+            '<html><body><h1>Totally Football</h1>'
+            .'<div class="ml-embedded" data-form="abc"></div>'
+            .'<script src="https://assets.mailerlite.com/js/universal.js"></script>'
+            .'</body></html>'
+        )]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $response = $this->postJson("/api/projects/{$project->id}/page-analyses", [
+            'url' => 'https://example.com',
+        ])->assertCreated();
+
+        $checks = collect($response->json('analysis.checks'))->keyBy('key');
+
+        $this->assertTrue($checks['email_capture']['passed']);
+    }
 }

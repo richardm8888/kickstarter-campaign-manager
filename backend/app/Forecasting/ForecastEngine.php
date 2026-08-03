@@ -3,6 +3,7 @@
 namespace App\Forecasting;
 
 use App\Models\Project;
+use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricSeries;
 
 /**
@@ -15,7 +16,10 @@ use App\Services\Analytics\MetricSeries;
  */
 class ForecastEngine
 {
-    public function __construct(private readonly MetricSeries $series) {}
+    public function __construct(
+        private readonly MetricSeries $series,
+        private readonly AudienceSize $audience,
+    ) {}
 
     public function forecast(ForecastInput $input): Forecast
     {
@@ -72,8 +76,8 @@ class ForecastEngine
     {
         $defaults = ForecastInput::defaults();
 
-        $subscribers = $project->subscribers()->count();
-        $vips = $project->subscribers()->where('is_vip', true)->count();
+        $subscribers = $this->audience->total($project);
+        $vips = $this->audience->vips($project);
 
         $observedCpc = $this->series->latest($project, 'cpc', 'meta');
         $observedConversion = $this->observedSignupRate($project);
@@ -85,15 +89,21 @@ class ForecastEngine
             $project->average_pledge > 0,
         ];
 
+        // Assumptions the creator saved take precedence over both observed
+        // data and benchmarks — they know things the data does not.
+        $saved = $project->forecast_assumptions ?? [];
+
         return new ForecastInput(
             emailSubscribers: $subscribers,
             vipCount: $vips,
-            plannedAdSpend: $plannedAdSpend ?? 1000_00,
-            cpc: $observedCpc ?? $defaults['cpc'],
-            visitorToSubscriberRate: $observedConversion ?? $defaults['visitor_to_subscriber_rate'],
-            subscriberToBackerRate: $defaults['subscriber_to_backer_rate'],
-            vipToBackerRate: $defaults['vip_to_backer_rate'],
-            averagePledge: $project->average_pledge > 0 ? $project->average_pledge : 45_00,
+            plannedAdSpend: $plannedAdSpend ?? $saved['planned_ad_spend'] ?? 1000_00,
+            cpc: (float) ($saved['cpc'] ?? $observedCpc ?? $defaults['cpc']),
+            visitorToSubscriberRate: (float) ($saved['visitor_to_subscriber_rate']
+                ?? $observedConversion
+                ?? $defaults['visitor_to_subscriber_rate']),
+            subscriberToBackerRate: (float) ($saved['subscriber_to_backer_rate'] ?? $defaults['subscriber_to_backer_rate']),
+            vipToBackerRate: (float) ($saved['vip_to_backer_rate'] ?? $defaults['vip_to_backer_rate']),
+            averagePledge: $saved['average_pledge'] ?? ($project->average_pledge > 0 ? $project->average_pledge : 45_00),
             fundingGoal: $project->funding_goal,
             dataCompleteness: count(array_filter($observed)) / count($observed),
         );

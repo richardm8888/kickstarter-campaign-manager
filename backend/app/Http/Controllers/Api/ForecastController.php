@@ -42,6 +42,30 @@ class ForecastController extends Controller
         ]);
     }
 
+    /** Stores the creator's assumptions so the screen reopens where they left it. */
+    public function saveAssumptions(Request $request, Project $project): JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'planned_ad_spend' => ['sometimes', 'integer', 'min:0'],
+            'cpc' => ['sometimes', 'numeric', 'min:0.01'],
+            'visitor_to_subscriber_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'subscriber_to_backer_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'vip_to_backer_rate' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'average_pledge' => ['sometimes', 'integer', 'min:0'],
+        ]);
+
+        $project->update([
+            'forecast_assumptions' => [...$project->forecast_assumptions ?? [], ...$validated],
+        ]);
+
+        return response()->json([
+            'assumptions' => $project->forecast_assumptions,
+            'message' => 'Saved. These will be used next time.',
+        ]);
+    }
+
     /** What-if forecast with user-supplied assumptions overriding observed data. */
     public function preview(Request $request, Project $project): JsonResponse
     {

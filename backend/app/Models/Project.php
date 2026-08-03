@@ -22,6 +22,7 @@ class Project extends Model
         'funding_goal',
         'average_pledge',
         'launch_date',
+        'forecast_assumptions',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class Project extends Model
             'funding_goal' => 'integer',
             'average_pledge' => 'integer',
             'launch_date' => 'date',
+            'forecast_assumptions' => 'array',
         ];
     }
 

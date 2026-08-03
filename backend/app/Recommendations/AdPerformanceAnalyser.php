@@ -39,7 +39,15 @@ class AdPerformanceAnalyser
         'ad_leads' => 'leads',
         'ad_view_content' => 'view_content',
         'ad_landing_page_views' => 'landing_page_views',
+        'ad_follows' => 'follows',
     ];
+
+    /**
+     * Share of Kickstarter followers who go on to back at launch. Followers
+     * are notified the moment a campaign opens, which is why they convert
+     * far better than a cold email address.
+     */
+    private const FOLLOW_TO_BACKER_RATE = 0.25;
 
     public function __construct(private readonly ForecastEngine $forecasts) {}
 
@@ -147,6 +155,10 @@ class AdPerformanceAnalyser
                 'leads' => (int) $totals['leads'],
                 'view_content' => (int) $totals['view_content'],
                 'landing_page_views' => (int) $totals['landing_page_views'],
+                'follows' => (int) $totals['follows'],
+                'cost_per_follow' => $totals['follows'] > 0
+                    ? round($totals['spend'] / $totals['follows'], 2)
+                    : null,
                 'ctr' => $totals['impressions'] > 0
                     ? round($totals['clicks'] / $totals['impressions'] * 100, 2)
                     : null,
@@ -191,6 +203,12 @@ class AdPerformanceAnalyser
                 ),
                 'action' => 'Leave it running until it has spent about '.$this->money(self::MIN_SPEND).'.',
             ];
+        }
+
+        // Ads driving Kickstarter follows produce no email signups by
+        // design; a follower is notified at launch, so judge them on that.
+        if (($ad['follows'] ?? 0) > 0 && $ad['leads'] === 0) {
+            return $this->judgeFollowAd($ad, $affordableCpl);
         }
 
         // An ad optimised for traffic was never asked to produce signups,
@@ -276,6 +294,41 @@ class AdPerformanceAnalyser
             'verdict' => AdVerdict::Keep,
             'reason' => sprintf('Signups cost %s, in line with the rest of the account.', $this->money($cpl)),
             'action' => 'Leave it as it is and keep an eye on the trend.',
+        ];
+    }
+
+    /**
+     * A Kickstarter follow is worth more than an email address, because
+     * Kickstarter notifies followers the instant the campaign opens.
+     */
+    private function judgeFollowAd(array $ad, float $affordableCpl): array
+    {
+        $costPerFollow = $ad['cost_per_follow'];
+        // Followers convert better than subscribers, so more is affordable.
+        $affordableCostPerFollow = $affordableCpl > 0
+            ? $affordableCpl / 0.04 * self::FOLLOW_TO_BACKER_RATE
+            : 0.0;
+
+        if ($costPerFollow !== null && $affordableCostPerFollow > 0 && $costPerFollow > $affordableCostPerFollow) {
+            return [
+                'verdict' => AdVerdict::Drop,
+                'reason' => sprintf(
+                    'Each Kickstarter follow costs %s, above the %s one is worth to this campaign.',
+                    $this->money($costPerFollow),
+                    $this->money($affordableCostPerFollow),
+                ),
+                'action' => 'Pause it, or move the budget to your lead form ads.',
+            ];
+        }
+
+        return [
+            'verdict' => AdVerdict::Scale,
+            'reason' => sprintf(
+                '%d Kickstarter follows at %s each — followers are notified the moment you launch.',
+                $ad['follows'],
+                $costPerFollow !== null ? $this->money($costPerFollow) : 'an unknown cost',
+            ),
+            'action' => 'Keep funding this; follows are the closest thing to a booked backer.',
         ];
     }
 

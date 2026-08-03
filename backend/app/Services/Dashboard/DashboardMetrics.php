@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Forecasting\ForecastEngine;
 use App\Models\Project;
+use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricSeries;
 
 class DashboardMetrics
@@ -13,18 +14,17 @@ class DashboardMetrics
     public function __construct(
         private readonly MetricSeries $series,
         private readonly ForecastEngine $forecasts,
+        private readonly AudienceSize $audience,
     ) {}
 
     public function cards(Project $project): array
     {
         $visitors = $this->series->sum($project, 'sessions', self::WINDOW_DAYS);
-        $subscribers = $project->subscribers()->count();
-        $vips = $project->subscribers()->where('is_vip', true)->count();
+        $subscribers = $this->audience->total($project);
+        $vips = $this->audience->vips($project);
         $spend = $this->series->sum($project, 'spend', self::WINDOW_DAYS, 'meta');
 
-        $newSubscribers = $project->subscribers()
-            ->where('created_at', '>=', now()->subDays(self::WINDOW_DAYS))
-            ->count();
+        $newSubscribers = $this->audience->recentSignups($project, self::WINDOW_DAYS);
 
         $forecast = $this->forecasts->forProject($project);
 

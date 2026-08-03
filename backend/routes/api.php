@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/forecast', [ForecastController::class, 'show']);
         Route::post('/forecast/preview', [ForecastController::class, 'preview']);
+        Route::put('/forecast/assumptions', [ForecastController::class, 'saveAssumptions']);
 
         Route::get('/insights', [InsightController::class, 'index']);
         Route::post('/insights/generate', [InsightController::class, 'generate']);

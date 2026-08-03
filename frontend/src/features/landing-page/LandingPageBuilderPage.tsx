@@ -55,40 +55,71 @@ export function LandingPageBuilderPage() {
   }
 
   const page = data.landing_page
+  const externalUrl = project?.project.external_landing_url ?? ''
+  const usesOwnPage = externalUrl !== ''
 
   return (
     <>
-      <PageHeader title="Landing page" subtitle="Configuration over freedom — every section is conversion-tested">
-        <div className="flex items-center gap-3">
-          {page.published ? <Badge variant="success">Live</Badge> : <Badge variant="outline">Draft</Badge>}
-          <Button
-            variant={page.published ? 'outline' : 'default'}
-            onClick={() => publish.mutate(!page.published)}
-            disabled={publish.isPending}
-          >
-            {page.published ? 'Unpublish' : 'Publish'}
-          </Button>
-        </div>
+      <PageHeader
+        title="Landing page"
+        subtitle={
+          usesOwnPage
+            ? 'Your own page — analysed and scored against what drives pre-launch conversion'
+            : 'Configuration over freedom — every section is conversion-tested'
+        }
+      >
+        {!usesOwnPage && (
+          <div className="flex items-center gap-3">
+            {page.published ? <Badge variant="success">Live</Badge> : <Badge variant="outline">Draft</Badge>}
+            <Button
+              variant={page.published ? 'outline' : 'default'}
+              onClick={() => publish.mutate(!page.published)}
+              disabled={publish.isPending}
+            >
+              {page.published ? 'Unpublish' : 'Publish'}
+            </Button>
+          </div>
+        )}
       </PageHeader>
 
-      {page.published && (
+      {page.published && !usesOwnPage && (
         <p className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
           <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           Served at <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/api/pages/{page.slug}</code>
         </p>
       )}
 
-      <PageAnalyser projectId={projectId} initialUrl={project?.project.external_landing_url ?? ''} />
+      <PageAnalyser projectId={projectId} initialUrl={usesOwnPage ? externalUrl : ''} />
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold text-muted-foreground">
-        Or configure the built-in page
-      </h2>
-
-      <div className="flex flex-col gap-3">
-        {page.sections.map((section) => (
-          <SectionCard key={section.id} projectId={projectId} section={section} onSaved={invalidate} />
-        ))}
-      </div>
+      {/* With their own page live, the built-in builder is noise — keep it
+          reachable for anyone who changes their mind, but out of the way. */}
+      {usesOwnPage ? (
+        <details className="mt-8">
+          <summary className="cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">
+            Built-in landing page (not in use)
+          </summary>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You're using <span className="font-medium text-foreground">{externalUrl}</span>. Clear it in
+            Settings to switch back to the built-in page.
+          </p>
+          <div className="mt-3 flex flex-col gap-3">
+            {page.sections.map((section) => (
+              <SectionCard key={section.id} projectId={projectId} section={section} onSaved={invalidate} />
+            ))}
+          </div>
+        </details>
+      ) : (
+        <>
+          <h2 className="mb-3 mt-8 text-sm font-semibold text-muted-foreground">
+            Or configure the built-in page
+          </h2>
+          <div className="flex flex-col gap-3">
+            {page.sections.map((section) => (
+              <SectionCard key={section.id} projectId={projectId} section={section} onSaved={invalidate} />
+            ))}
+          </div>
+        </>
+      )}
     </>
   )
 }

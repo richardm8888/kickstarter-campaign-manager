@@ -8,6 +8,13 @@ export const getForecast = (projectId: string) =>
     queryFn: () => api.get<{ forecast: Forecast; input: ForecastInput }>(`/projects/${projectId}/forecast`),
   })
 
+export function saveAssumptions(
+  projectId: string,
+  assumptions: Partial<ForecastInput>,
+): Promise<{ message: string }> {
+  return api.put(`/projects/${projectId}/forecast/assumptions`, assumptions)
+}
+
 export function previewForecast(
   projectId: string,
   overrides: Partial<ForecastInput>,

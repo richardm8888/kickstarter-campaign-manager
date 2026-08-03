@@ -4,6 +4,7 @@ namespace App\Services\Funnel;
 
 use App\Forecasting\ForecastEngine;
 use App\Models\Project;
+use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricSeries;
 
 /**
@@ -17,14 +18,15 @@ class FunnelBuilder
     public function __construct(
         private readonly MetricSeries $series,
         private readonly ForecastEngine $forecasts,
+        private readonly AudienceSize $audience,
     ) {}
 
     public function build(Project $project): array
     {
         $clicks = (int) $this->series->sum($project, 'clicks', self::WINDOW_DAYS, 'meta');
         $visitors = (int) $this->series->sum($project, 'sessions', self::WINDOW_DAYS);
-        $subscribers = $project->subscribers()->count();
-        $vips = $project->subscribers()->where('is_vip', true)->count();
+        $subscribers = $this->audience->total($project);
+        $vips = $this->audience->vips($project);
         // Follows of the Kickstarter page, either reported by Meta or
         // entered manually as a running total.
         $notifyFollowers = (int) max(
