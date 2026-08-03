@@ -251,6 +251,27 @@ purchase is counted as revenue only. On demand:
 docker compose exec backend php artisan stripe:import-vips
 ```
 
+**Kickstarter followers.** Paste your pre-launch page URL into Settings and
+the scheduler reads its follower count every hour — Kickstarter publishes no
+API for it, so the public page is the only source. On demand:
+
+```bash
+docker compose exec backend php artisan kickstarter:followers
+```
+
+Followers matter out of proportion to their number. The forecast treats the
+three audiences separately, because they do not behave alike:
+
+| Audience | Backs at | Why |
+| --- | --- | --- |
+| Email subscribers | 1–3% | gave an address for a lead magnet, may not remember |
+| Kickstarter followers | 10–30% | notified by Kickstarter the moment you open, already have a payment method there |
+| Paid VIP reservers | 15–60% | have already paid, which filters for intent better than anything else |
+
+One follower is therefore worth about ten email subscribers, which is why
+the ad report judges each ad against what its *destination* produces rather
+than on cost per click alone.
+
 Choose which MailerLite group imported contacts join on the Integrations
 screen — automations and segments are usually built around groups, so this
 is what makes the imported list actionable.

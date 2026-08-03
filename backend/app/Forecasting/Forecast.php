@@ -8,12 +8,15 @@ final readonly class Forecast
         public int $projectedVisitors,
         public int $projectedSubscribers,
         public int $projectedVips,
+        public int $projectedFollowers,
         public int $expectedBackers,
         public int $expectedFunding,
         public int $fundingGoal,
         public float $goalCoverage,
         public string $confidence,
         public array $assumptions,
+        /** Backers each segment is expected to contribute. */
+        public array $backersBySegment = [],
     ) {}
 
     public function toArray(): array
@@ -22,6 +25,8 @@ final readonly class Forecast
             'projected_visitors' => $this->projectedVisitors,
             'projected_subscribers' => $this->projectedSubscribers,
             'projected_vips' => $this->projectedVips,
+            'projected_followers' => $this->projectedFollowers,
+            'backers_by_segment' => $this->backersBySegment,
             'expected_backers' => $this->expectedBackers,
             'expected_funding' => $this->expectedFunding,
             'funding_goal' => $this->fundingGoal,

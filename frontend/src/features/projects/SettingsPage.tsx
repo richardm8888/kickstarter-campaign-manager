@@ -20,6 +20,7 @@ interface Form {
   average_pledge: string
   launch_date: string
   external_landing_url: string
+  kickstarter_url: string
 }
 
 export function SettingsPage() {
@@ -40,6 +41,7 @@ export function SettingsPage() {
         average_pledge: String(p.average_pledge / 100),
         launch_date: p.launch_date ? p.launch_date.slice(0, 10) : '',
         external_landing_url: p.external_landing_url ?? '',
+        kickstarter_url: p.kickstarter_url ?? '',
       })
     }
   }, [data, form])
@@ -54,6 +56,7 @@ export function SettingsPage() {
         average_pledge: Math.round(Number(input.average_pledge || '0') * 100),
         launch_date: input.launch_date || null,
         external_landing_url: input.external_landing_url || null,
+        kickstarter_url: input.kickstarter_url || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
@@ -161,6 +164,21 @@ export function SettingsPage() {
                 Set this if you use your own page instead of the built-in one — we'll score it instead.
               </p>
               <FieldError messages={errors.external_landing_url} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="s-kickstarter">Kickstarter pre-launch page</Label>
+              <Input
+                id="s-kickstarter"
+                type="url"
+                placeholder="https://www.kickstarter.com/projects/you/your-project"
+                value={form.kickstarter_url}
+                onChange={set('kickstarter_url')}
+              />
+              <p className="text-xs text-muted-foreground">
+                We check it every hour for your follower count. Followers back at around 20% against
+                2% for a plain email subscriber, so they are the number worth watching.
+              </p>
+              <FieldError messages={errors.kickstarter_url} />
             </div>
           </CardContent>
         </Card>

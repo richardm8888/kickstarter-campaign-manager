@@ -3,6 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Check, X } from 'lucide-react'
 import { getForecast, saveAdSpend } from './api'
+import { AudienceValuePanel } from './AudienceValue'
 import { LaunchTracker } from './LaunchTracker'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
@@ -215,6 +216,8 @@ export function ForecastPage() {
               )}
             </CardContent>
           </Card>
+
+          <AudienceValuePanel segments={data.audience_value} />
         </div>
 
         <div className="flex flex-col gap-4 lg:col-span-3">
@@ -242,9 +245,9 @@ export function ForecastPage() {
                 ) : (
                   <>
                     We'd budget <span className="font-medium text-foreground">{money(recommended)}</span> to
-                    reach {money(measured.funding_goal)}, assuming{' '}
-                    {percent(data.planning_rate * 100, 0)} of your list backs you — the cautious middle of the
-                    range below.
+                    reach {money(measured.funding_goal)}, at the{' '}
+                    {percent(measured.marginal_backer_rate * 100, 1)} your ads currently deliver — the blend
+                    of email signups and Kickstarter followers they produce.
                   </>
                 )}
               </p>
@@ -266,11 +269,17 @@ export function ForecastPage() {
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <p className="text-sm">
-                  You need <span className="font-medium">{number(requirements.backers_needed)} backers</span>,
-                  which means a list of about{' '}
-                  <span className="font-medium">{number(requirements.subscribers_needed)}</span> at the
-                  {' '}{percent(data.planning_rate * 100, 0)} planning rate. Your budget buys about{' '}
-                  {number(requirements.visitors_bought)} visitors.
+                  You need <span className="font-medium">{number(requirements.backers_needed)} backers</span>
+                  {requirements.backers_from_current_audience > 0 && (
+                    <>
+                      {' '}and your audience already covers{' '}
+                      {number(requirements.backers_from_current_audience)}
+                    </>
+                  )}
+                  . That is{' '}
+                  <span className="font-medium">{number(requirements.signups_needed)} more signups</span> at
+                  the {percent(requirements.marginal_backer_rate * 100, 1)} your ads currently deliver. Your
+                  budget buys about {number(requirements.visitors_bought)} visitors.
                 </p>
 
                 {requirements.required_conversion && (
@@ -284,9 +293,9 @@ export function ForecastPage() {
 
                 {requirements.required_backer_rate && (
                   <Requirement
-                    label="Your list who must back"
+                    label="Your audience who must back"
                     value={percent(requirements.required_backer_rate.rate * 100)}
-                    detail={`from a list of ${number(requirements.projected_list)}`}
+                    detail={`of ${number(requirements.projected_list)}, ceiling ${percent(requirements.required_backer_rate.ceiling * 100, 1)}`}
                     likelihood={requirements.required_backer_rate.likelihood}
                   />
                 )}
@@ -296,9 +305,9 @@ export function ForecastPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>If your list converts at…</CardTitle>
+              <CardTitle>If your audience converts at…</CardTitle>
               <CardDescription>
-                Nobody knows this number before launching, so here is the whole range.
+                Nobody knows these before launching, so here is the whole range.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -309,7 +318,7 @@ export function ForecastPage() {
                   </caption>
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                      <th scope="col" className="pb-2 font-medium">Backer rate</th>
+                      <th scope="col" className="pb-2 font-medium">Scenario</th>
                       <th scope="col" className="pb-2 text-right font-medium">Backers</th>
                       <th scope="col" className="pb-2 text-right font-medium">Funding</th>
                       <th scope="col" className="pb-2 text-right font-medium">Of goal</th>
@@ -334,6 +343,11 @@ export function ForecastPage() {
                               )}
                             </span>
                             {scenario.label}
+                            <span className="text-xs font-normal text-muted-foreground">
+                              {percent(scenario.rates.standard * 100, 0)} /{' '}
+                              {percent(scenario.rates.followers * 100, 0)} /{' '}
+                              {percent(scenario.rates.vips * 100, 0)}
+                            </span>
                             <span className="sr-only">
                               {scenario.funds_the_goal ? ': funds the goal' : ': short of the goal'}
                             </span>
@@ -354,8 +368,8 @@ export function ForecastPage() {
                 </table>
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                A cold list bought cheaply sits near 10%. A list warmed with regular updates before launch can
-                reach 30%.
+                Rates shown as email subscribers / Kickstarter followers / paid VIPs. The three back at very
+                different rates, so the mix of your audience matters more than its size.
               </p>
             </CardContent>
           </Card>

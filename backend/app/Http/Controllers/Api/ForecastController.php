@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Forecasting\BackerRates;
 use App\Forecasting\ForecastEngine;
 use App\Forecasting\FunnelRating;
 use App\Forecasting\LaunchPlan;
@@ -55,11 +56,15 @@ class ForecastController extends Controller
                 $cpcMeasured && $conversionMeasured,
             ),
             'plan' => $this->plan->build($project, $plannedAdSpend),
-            'planning_rate' => ForecastEngine::PLANNING_RATE,
+            'audience_value' => $this->engine->audienceValue($project),
+            'planning_rates' => BackerRates::planning(),
             'recommended_budget' => $recommended,
             'measured' => [
-                'email_subscribers' => $input->emailSubscribers,
-                'vip_count' => $input->vipCount,
+                'email_subscribers' => $input->emailSubscribers(),
+                'vip_count' => $input->vipCount(),
+                'followers' => $input->followers(),
+                'marginal_backer_rate' => round($input->marginalBackerRate(), 4),
+                'ad_mix' => $input->adMix,
                 'planned_ad_spend' => $input->plannedAdSpend,
                 'cpc' => $input->cpc,
                 'visitor_to_subscriber_rate' => $input->visitorToSubscriberRate,

@@ -95,13 +95,15 @@ class LaunchPlanTest extends TestCase
     {
         $project = $this->project(30);
 
-        // £10,000 goal at £50 = 200 backers; at 15% that needs 1,334 subscribers.
+        // £10,000 goal at £50 = 200 backers. These ads produce plain email
+        // leads, which back at 2%, so 10,000 of them are needed.
         $short = $this->plan($project, 300000)['summary'];
-        $this->assertSame(1334, $short['target_list']);
+        $this->assertSame(10000, $short['target_list']);
         $this->assertFalse($short['on_track']);
         $this->assertGreaterThan(0, $short['shortfall']);
 
-        $generous = $this->plan($project, 900000)['summary'];
+        // £50,000 at £1 a click and 20% conversion builds a list of 10,000.
+        $generous = $this->plan($project, 5000000)['summary'];
         $this->assertTrue($generous['on_track']);
     }
 

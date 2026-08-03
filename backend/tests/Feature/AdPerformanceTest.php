@@ -44,16 +44,17 @@ class AdPerformanceTest extends TestCase
 
     public function test_a_cheap_converting_ad_is_marked_to_scale(): void
     {
-        // £45 average pledge, 4% of subscribers back → ~£1.80 per subscriber.
+        // £45 average pledge; 2% of plain email leads back, so a lead is
+        // worth about £0.90 and anything dearer than that loses money.
         $project = Project::factory()->create(['average_pledge' => 4500]);
 
-        $this->recordAd($project, 'cheap', spend: 50, clicks: 100, leads: 50);   // £1.00 per lead
+        $this->recordAd($project, 'cheap', spend: 20, clicks: 100, leads: 50);   // £0.40 per lead
         $this->recordAd($project, 'dear', spend: 50, clicks: 100, leads: 10);    // £5.00 per lead
 
         $ads = collect($this->analyse($project)['ads'])->keyBy('ad_id');
 
         $this->assertSame('scale', $ads['cheap']['verdict']);
-        $this->assertSame(1.0, $ads['cheap']['cpl']);
+        $this->assertSame(0.4, $ads['cheap']['cpl']);
         $this->assertStringContainsString('Raise its budget', $ads['cheap']['action']);
     }
 
@@ -131,7 +132,7 @@ class AdPerformanceTest extends TestCase
         $project = Project::factory()->create(['average_pledge' => 4500]);
         Sanctum::actingAs($project->user);
 
-        $this->recordAd($project, 'winner', spend: 50, clicks: 100, leads: 50);
+        $this->recordAd($project, 'winner', spend: 20, clicks: 100, leads: 50);
         $this->recordAd($project, 'loser', spend: 60, clicks: 40, leads: 0);
 
         $response = $this->getJson("/api/projects/{$project->id}/ads")->assertOk();

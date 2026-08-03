@@ -2,6 +2,7 @@
 
 namespace App\Recommendations;
 
+use App\Forecasting\BackerRates;
 use App\Forecasting\ForecastEngine;
 use App\Models\Project;
 use Illuminate\Support\Collection;
@@ -42,13 +43,6 @@ class AdPerformanceAnalyser
         'ad_follows' => 'follows',
     ];
 
-    /**
-     * Share of Kickstarter followers who go on to back at launch. Followers
-     * are notified the moment a campaign opens, which is why they convert
-     * far better than a cold email address.
-     */
-    private const FOLLOW_TO_BACKER_RATE = 0.25;
-
     public function __construct(private readonly ForecastEngine $forecasts) {}
 
     public function analyse(Project $project, int $days = 14): array
@@ -60,10 +54,11 @@ class AdPerformanceAnalyser
 
         $accountCpl = $totalLeads > 0 ? $totalSpend / $totalLeads : null;
         $affordableCpl = $this->affordableCostPerLead($project);
+        $affordableCpf = $this->worthOf($project, BackerRates::FOLLOWERS);
         $hasLeadData = $totalLeads > 0;
 
         $ads = array_map(
-            fn (array $ad) => $ad + $this->judge($ad, $accountCpl, $affordableCpl, $hasLeadData),
+            fn (array $ad) => $ad + $this->judge($ad, $accountCpl, $affordableCpl, $affordableCpf, $hasLeadData),
             $ads,
         );
 
@@ -111,6 +106,7 @@ class AdPerformanceAnalyser
                 'total_leads' => (int) $totalLeads,
                 'account_cpl' => $accountCpl !== null ? round($accountCpl, 2) : null,
                 'affordable_cpl' => round($affordableCpl, 2),
+                'affordable_cost_per_follow' => round($affordableCpf, 2),
             ],
             'ads' => array_map(fn (array $ad) => [
                 ...$ad,
@@ -215,13 +211,25 @@ class AdPerformanceAnalyser
      */
     private function affordableCostPerLead(Project $project): float
     {
+        return $this->worthOf($project, BackerRates::STANDARD);
+    }
+
+    /** What one member of a segment is worth, in currency units. */
+    private function worthOf(Project $project, string $segment): float
+    {
         $input = $this->forecasts->inputFor($project, 0);
 
-        return ($input->averagePledge / 100) * $input->subscriberToBackerRate;
+        return ($input->averagePledge / 100) * ($input->backerRates[$segment] ?? 0.0);
     }
 
     /** @return array{verdict: AdVerdict, reason: string, action: string} */
-    private function judge(array $ad, ?float $accountCpl, float $affordableCpl, bool $hasLeadData): array
+    private function judge(
+        array $ad,
+        ?float $accountCpl,
+        float $affordableCpl,
+        float $affordableCpf,
+        bool $hasLeadData,
+    ): array
     {
         // Not enough money spent to tell signal from noise.
         if ($ad['spend'] < self::MIN_SPEND && ($ad['leads'] ?? 0) < self::MIN_LEADS) {
@@ -238,7 +246,7 @@ class AdPerformanceAnalyser
         // Ads driving Kickstarter follows produce no email signups by
         // design; a follower is notified at launch, so judge them on that.
         if (($ad['follows'] ?? 0) > 0 && $ad['leads'] === 0) {
-            return $this->judgeFollowAd($ad, $affordableCpl);
+            return $this->judgeFollowAd($ad, $affordableCpf);
         }
 
         // An ad optimised for traffic was never asked to produce signups,
@@ -331,13 +339,9 @@ class AdPerformanceAnalyser
      * A Kickstarter follow is worth more than an email address, because
      * Kickstarter notifies followers the instant the campaign opens.
      */
-    private function judgeFollowAd(array $ad, float $affordableCpl): array
+    private function judgeFollowAd(array $ad, float $affordableCostPerFollow): array
     {
         $costPerFollow = $ad['cost_per_follow'];
-        // Followers convert better than subscribers, so more is affordable.
-        $affordableCostPerFollow = $affordableCpl > 0
-            ? $affordableCpl / 0.04 * self::FOLLOW_TO_BACKER_RATE
-            : 0.0;
 
         if ($costPerFollow !== null && $affordableCostPerFollow > 0 && $costPerFollow > $affordableCostPerFollow) {
             return [

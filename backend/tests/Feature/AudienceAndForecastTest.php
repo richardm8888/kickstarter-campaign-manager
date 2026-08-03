@@ -127,16 +127,18 @@ class AudienceAndForecastTest extends TestCase
             $this->getJson("/api/projects/{$project->id}/forecast?planned_ad_spend=0")->json('scenarios'),
         )->keyBy('label');
 
-        $this->assertSame(['10%', '15%', '20%', '30%'], $scenarios->keys()->all());
+        $this->assertSame(['Cautious', 'Expected', 'Optimistic'], $scenarios->keys()->all());
 
-        // 10% of 1,000 subscribers = 100 backers x £50 = £5,000.
-        $this->assertSame(100, $scenarios['10%']['expected_backers']);
-        $this->assertSame(500000, $scenarios['10%']['expected_funding']);
-        $this->assertFalse($scenarios['10%']['funds_the_goal']);
+        // A plain email list is the weakest audience there is: 1,000 of them
+        // at the cautious 1% is 10 backers x £50 = £500.
+        $this->assertSame(10, $scenarios['Cautious']['expected_backers']);
+        $this->assertSame(50000, $scenarios['Cautious']['expected_funding']);
+        $this->assertFalse($scenarios['Cautious']['funds_the_goal']);
 
-        // 20% clears the £10,000 goal.
-        $this->assertSame(200, $scenarios['20%']['expected_backers']);
-        $this->assertTrue($scenarios['20%']['funds_the_goal']);
+        // Even at the top of the range it raises £1,500 of a £10,000 goal,
+        // which is the whole argument for followers and VIPs.
+        $this->assertSame(30, $scenarios['Optimistic']['expected_backers']);
+        $this->assertFalse($scenarios['Optimistic']['funds_the_goal']);
     }
 
     public function test_it_recommends_a_budget_from_measured_cost_and_conversion(): void
@@ -152,17 +154,19 @@ class AudienceAndForecastTest extends TestCase
 
         $response = $this->getJson("/api/projects/{$project->id}/forecast")->assertOk();
 
-        // £10,000 goal / £50 = 200 backers; at 15% that needs 1,334
-        // subscribers; at 20% conversion that is 6,670 clicks at £1 each.
-        $this->assertSame(667000, $response->json('recommended_budget'));
+        // £10,000 goal / £50 = 200 backers. The ads here produce plain
+        // email leads, which back at 2%, so 10,000 of them are needed; at
+        // 20% conversion that is 50,000 clicks at £1 each.
+        $this->assertSame(5000000, $response->json('recommended_budget'));
         $this->assertTrue($response->json('measured.cpc_measured'));
         $this->assertTrue($response->json('measured.conversion_measured'));
     }
 
-    public function test_no_budget_is_recommended_when_the_list_is_already_big_enough(): void
+    public function test_no_budget_is_recommended_when_the_audience_is_already_big_enough(): void
     {
+        // £1,000 goal at £50 needs 20 backers. 100 VIPs at 30% deliver 30.
         $project = Project::factory()->create(['average_pledge' => 5000, 'funding_goal' => 100000]);
-        Subscriber::factory()->for($project)->count(500)->create();
+        Subscriber::factory()->for($project)->vip()->count(100)->create();
 
         Sanctum::actingAs($project->user);
 

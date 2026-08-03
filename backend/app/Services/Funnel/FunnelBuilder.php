@@ -2,6 +2,7 @@
 
 namespace App\Services\Funnel;
 
+use App\Forecasting\BackerRates;
 use App\Forecasting\ForecastEngine;
 use App\Models\Project;
 use App\Recommendations\AdType;
@@ -64,10 +65,11 @@ class FunnelBuilder
 
         $adSignups = (int) ($totals['ad_leads'] + $totals['ad_follows']);
         $subscribers = $this->audience->total($project);
-        $followers = $this->followers($project, $totals['ad_follows']);
+        $followers = $this->audience->followers($project);
         $vips = $this->audience->vips($project);
 
         $reached = $landingPageViews + $formViews;
+        $forecast = $this->forecasts->forProject($project, 0);
 
         $steps = [
             [
@@ -132,8 +134,9 @@ class FunnelBuilder
             [
                 'key' => 'backers',
                 'label' => 'Projected backers',
-                'value' => $this->forecasts->forProject($project, 0)->expectedBackers,
-                'note' => sprintf('at a %d%% backer rate', (int) round(ForecastEngine::PLANNING_RATE * 100)),
+                'value' => $forecast->expectedBackers,
+                // Each group backs at its own rate, so say which produced what.
+                'note' => $this->backerNote($forecast->backersBySegment),
                 'basis' => self::TOTAL,
                 'conversion' => null,
             ],
@@ -188,12 +191,6 @@ class FunnelBuilder
         return $form['ad_form_views'] > 0 ? $form['ad_form_views'] : $form['ad_clicks'];
     }
 
-    /** Followers of the Kickstarter page, from ads or entered by hand. */
-    private function followers(Project $project, float $adFollows): int
-    {
-        return (int) max($adFollows, $this->series->latest($project, 'ks_followers') ?? 0);
-    }
-
     /**
      * Account-level totals exist alongside the per-ad series and should
      * agree; taking the larger survives a partial sync of either.
@@ -220,5 +217,24 @@ class FunnelBuilder
     private function rate(float $value, float $of): ?float
     {
         return $of > 0 ? round($value / $of * 100, 1) : null;
+    }
+
+    /**
+     * Where the projected backers come from. A follower is worth ten email
+     * addresses, so the split matters more than the total.
+     *
+     * @param  array<string, int>  $bySegment
+     */
+    private function backerNote(array $bySegment): ?string
+    {
+        $parts = [];
+
+        foreach ($bySegment as $segment => $backers) {
+            if ($backers > 0) {
+                $parts[] = sprintf('%d from %s', $backers, strtolower(BackerRates::segmentLabel($segment)));
+            }
+        }
+
+        return $parts === [] ? null : implode(', ', $parts);
     }
 }

@@ -58,7 +58,7 @@ class LaunchPlan
         $totalWeight = array_sum($weights) ?: 1.0;
 
         $actuals = $this->actualsByDate($project, $start, $today);
-        $startingList = $this->startingList($project, $actuals);
+        $startingList = $this->startingList($input, $actuals);
 
         $days = [];
         $cumulativeSpend = 0;
@@ -171,21 +171,33 @@ class LaunchPlan
         return $actuals;
     }
 
-    private function startingList(Project $project, array $actuals): int
+    /**
+     * Everyone the campaign can reach at launch: the email list, the
+     * Kickstarter followers and the paid VIPs. The target is measured
+     * against the same total, so the two must count the same people.
+     */
+    private function startingList(ForecastInput $input, array $actuals): int
     {
-        return max($this->audience->total($project), $actuals ? (int) end($actuals) : 0);
+        return max($input->audience->total(), $actuals ? (int) end($actuals) : 0);
     }
 
     /** The list size implied by the funding goal at the planning rate. */
     private function targetList(ForecastInput $input): int
     {
-        if ($input->averagePledge <= 0 || $input->fundingGoal <= 0) {
+        $marginal = $input->marginalBackerRate();
+
+        if ($input->averagePledge <= 0 || $input->fundingGoal <= 0 || $marginal <= 0) {
             return 0;
         }
 
         $backersNeeded = (int) ceil($input->fundingGoal / $input->averagePledge);
+        $alreadyHave = $input->audience->backers($input->backerRates);
 
-        return (int) ceil($backersNeeded / ForecastEngine::PLANNING_RATE);
+        // Only the shortfall has to be built; the audience already there
+        // is counted at its own segments' rates, not at the marginal one.
+        $shortfall = max(0, $backersNeeded - $alreadyHave);
+
+        return $input->audience->total() + (int) ceil($shortfall / $marginal);
     }
 
     /** @param  list<array<string, mixed>>  $days */

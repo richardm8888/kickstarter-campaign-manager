@@ -37,6 +37,21 @@ class AudienceSize
         );
     }
 
+    /**
+     * Followers of the Kickstarter pre-launch page.
+     *
+     * Kickstarter owns these people — we never see an address — so the
+     * count comes from the page itself, or from Meta's follow conversions
+     * where the page has not been linked yet.
+     */
+    public function followers(Project $project): int
+    {
+        return (int) max(
+            $this->series->latest($project, 'ks_followers') ?? 0,
+            $this->series->sum($project, 'ad_follows', 3650),
+        );
+    }
+
     /** New contacts in the window, used for conversion and cost per signup. */
     public function recentSignups(Project $project, int $days = 30): int
     {

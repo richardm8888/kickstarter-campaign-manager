@@ -18,6 +18,7 @@ class Project extends Model
         'slug',
         'description',
         'external_landing_url',
+        'kickstarter_url',
         'currency',
         'funding_goal',
         'average_pledge',

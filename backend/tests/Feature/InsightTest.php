@@ -93,7 +93,7 @@ class InsightTest extends TestCase
         $this->getJson("/api/projects/{$project->id}/forecast")
             ->assertOk()
             ->assertJsonStructure([
-                'scenarios' => [['rate', 'label', 'expected_backers', 'expected_funding', 'funds_the_goal']],
+                'scenarios' => [['scenario', 'label', 'rates', 'expected_backers', 'expected_funding', 'funds_the_goal']],
                 'recommended_budget',
                 'measured' => ['cpc', 'average_pledge', 'funding_goal', 'cpc_measured'],
                 'confidence',

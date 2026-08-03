@@ -10,6 +10,7 @@ export interface Project {
   slug: string
   description: string | null
   external_landing_url: string | null
+  kickstarter_url: string | null
   currency: string
   funding_goal: number
   average_pledge: number
@@ -224,13 +225,33 @@ export interface CampaignHealth {
   recommendations: Insight[]
 }
 
+export type AudienceSegment = 'standard' | 'followers' | 'vips'
+
+export type BackerRates = Record<AudienceSegment, number>
+
 export interface ForecastScenario {
-  rate: number
+  scenario: 'cautious' | 'expected' | 'optimistic'
   label: string
+  rates: BackerRates
   expected_backers: number
+  backers_by_segment: Record<AudienceSegment, number>
   expected_funding: number
   goal_coverage: number
   funds_the_goal: boolean
+  is_planning: boolean
+}
+
+export interface AudienceValue {
+  segment: AudienceSegment
+  label: string
+  count: number
+  rate: number
+  rate_low: number
+  rate_high: number
+  backers: number
+  funding: number
+  /** What one more of these is worth, in minor units. */
+  value_each: number
 }
 
 export interface FunnelRating {
@@ -240,11 +261,19 @@ export interface FunnelRating {
 
 export interface ForecastRequirements {
   backers_needed: number
-  subscribers_needed: number
+  backers_from_current_audience: number
+  signups_needed: number
   projected_list: number
+  projected_mix: Record<AudienceSegment, number>
   visitors_bought: number
+  marginal_backer_rate: number
   required_conversion: { rate: number; current: number; likelihood: string } | null
-  required_backer_rate: { rate: number; likelihood: string } | null
+  required_backer_rate: {
+    rate: number
+    planning: number
+    ceiling: number
+    likelihood: string
+  } | null
 }
 
 export interface PlanDay {
@@ -281,12 +310,16 @@ export interface ForecastReport {
   requirements: ForecastRequirements | []
   ratings: { cpc: FunnelRating; conversion: FunnelRating }
   focus: { severity: string; title: string; body: string; action: string } | null
-  planning_rate: number
+  audience_value: AudienceValue[]
+  planning_rates: BackerRates
   recommended_budget: number
   confidence: 'low' | 'medium' | 'high'
   measured: {
     email_subscribers: number
     vip_count: number
+    followers: number
+    marginal_backer_rate: number
+    ad_mix: BackerRates | null
     planned_ad_spend: number
     cpc: number
     visitor_to_subscriber_rate: number

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Actions\CreateProject;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Rules\KickstarterUrl;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class ProjectController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'external_landing_url' => ['nullable', 'url', 'max:255'],
+            'kickstarter_url' => ['nullable', 'url', 'max:255', new KickstarterUrl],
             'currency' => ['nullable', 'string', 'size:3'],
             'funding_goal' => ['nullable', 'integer', 'min:0'],
             'average_pledge' => ['nullable', 'integer', 'min:0'],
@@ -54,6 +56,7 @@ class ProjectController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'external_landing_url' => ['nullable', 'url', 'max:255'],
+            'kickstarter_url' => ['nullable', 'url', 'max:255', new KickstarterUrl],
             'currency' => ['sometimes', 'string', 'size:3'],
             'funding_goal' => ['sometimes', 'integer', 'min:0'],
             'average_pledge' => ['sometimes', 'integer', 'min:0'],

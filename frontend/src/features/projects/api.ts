@@ -17,6 +17,7 @@ export interface ProjectInput {
   name: string
   description?: string | null
   external_landing_url?: string | null
+  kickstarter_url?: string | null
   currency?: string
   funding_goal?: number
   average_pledge?: number
