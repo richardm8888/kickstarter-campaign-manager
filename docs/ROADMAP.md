@@ -50,6 +50,21 @@ communities or press gets nothing.
   pledge lands 15–35% above the core price once add-ons and upgrades are
   counted — show the working, and let them override. Comparables improve
   the estimate once Phase 2 lands.
+- **Meta setup preflight.** With OAuth deferred, "paste a token you
+  generated yourself" stays the front door, so make it survivable: check
+  the token carries `ads_management`, a Page is connected, a pixel exists
+  and the ad account has a payment method, each failure with a plain
+  fix and a deep link.
+- **Instrument the setup funnel, step by step.** During validation,
+  "gave up in the Meta developer console" and "did not want the product"
+  look identical in aggregate and mean opposite things. Without
+  attributable drop-off we will read a setup problem as a demand problem
+  and draw the wrong conclusion about the whole product.
+- **Concierge onboarding**, paid, capped at roughly the first 50
+  customers. It is the only bridge across the token wall while OAuth is
+  deferred, and fifty setup calls are the spec for what to automate
+  later. Put the cap in writing — if it is still running at customer 200,
+  the product never got easier and the calls became the business.
 
 ## Phase 2 — Value before they spend anything
 
@@ -69,42 +84,15 @@ first-timer has no reason to return tomorrow.
   funding goal: "£25,000 funds 340 units and leaves you £2,000 short."
   Requires no integrations, and it is the question first-timers get wrong.
 
-## Phase 3 — Meta OAuth, and concierge onboarding alongside it
-
-Today a creator must build their own app at developers.facebook.com and
-generate a token by hand. It is the worst moment in the product by a
-distance, and it is entirely self-inflicted.
-
-- **"Continue with Facebook".** Needs Business Verification and App Review
-  for `ads_management`, `ads_read`, `leads_retrieval`, `pages_show_list`
-  and `business_management` — a registered business, a privacy policy, and
-  a screencast per permission that a reviewer actually tests. Mostly
-  waiting rather than building, so start it early.
-- **Concierge onboarding**, paid, for the first ~50 customers. Run it
-  *before* the OAuth build, not after: fifty setup calls are the spec for
-  what to automate, and they prove the pain is worth engineering against.
-  Put the cap in writing — if it is still running at customer 200, the
-  product never got easier and the calls became the business.
-
-### What can never be automated
-
-| Automatable | Manual, always |
-| --- | --- |
-| Create the pixel | Have a Facebook Page |
-| Create the Instant Form | Ad account with a **payment method** — Meta will never let us add a card |
-| Create campaigns, ad sets, ads | Paste the pixel ID into Kickstarter's project settings |
-| Upload creative, read insights and leads | Everything on Kickstarter itself |
-
-With OAuth done, first-run setup drops from roughly 45 minutes of
-developer-console navigation to about 15 minutes of Page and payment
-method. That is a normal onboarding; today's is not.
-
-## Phase 4 — The ad builder
+## Phase 3 — The ad builder
 
 Assets and a budget in; correctly configured campaigns out. See the
 [ad builder design](#ad-builder-design) below.
 
-## Phase 5 — Launch week and the live campaign
+Not blocked by the deferred OAuth work: a creator's own app token can carry
+`ads_management` for their own ad account without our app being reviewed.
+
+## Phase 4 — Launch week and the live campaign
 
 We cover roughly eight weeks of a twelve-month journey, and the thirty days
 that decide the outcome are invisible.
@@ -114,7 +102,7 @@ that decide the outcome are invisible.
 - Live funding velocity against comparables, mid-campaign slump prediction,
   update cadence prompts.
 
-## Phase 6 — Campaign over campaign
+## Phase 5 — Campaign over campaign
 
 The retention answer and the moat: nobody else holds your last campaign's
 data. "At 40 days out you had 610 followers; you have 418 now." First-timers
@@ -125,6 +113,43 @@ become repeat users because leaving means abandoning their history.
   to ever learn a creator's *actual* list-to-backer conversion, actual
   average pledge and actual channel performance, which is what turns our
   published rates into their measured ones.
+
+## Gated on validation
+
+Deliberately deferred. These cost real money or real calendar time before
+there is evidence anyone wants the product, so they wait for evidence.
+
+### Meta OAuth and App Review
+
+"Continue with Facebook" instead of "build your own app at
+developers.facebook.com and paste the token". It needs Business
+Verification and App Review for `ads_management`, `ads_read`,
+`leads_retrieval`, `pages_show_list` and `business_management` — a
+registered business, a privacy policy, and a screencast per permission
+that a reviewer actually tests.
+
+It would take first-run setup from roughly 45 minutes of developer-console
+navigation to about 15 minutes of Page and payment method. That is the
+single biggest UX win available in the product, and it is still the right
+call to wait: the cost lands before the evidence does.
+
+**Revisit when** manual setup is the bottleneck rather than demand — as a
+starting number, once ~20 creators have connected Meta and run ads. Write
+the trigger down and check it, or "validate first" quietly becomes
+"never".
+
+**Does not block the ad builder.** A creator's own app token can carry
+`ads_management` for their own ad account without our app being reviewed.
+
+**What no amount of integration work can automate**, so it stays manual
+whatever happens here:
+
+| Automatable | Manual, always |
+| --- | --- |
+| Create the pixel | Have a Facebook Page |
+| Create the Instant Form | Ad account with a **payment method** — Meta will never let us add a card |
+| Create campaigns, ad sets, ads | Paste the pixel ID into Kickstarter's project settings |
+| Upload creative, read insights and leads | Everything on Kickstarter itself |
 
 ## Later
 
@@ -155,7 +180,7 @@ Consequences:
 - Follower counts come from scraping a public page, which is why
   `KickstarterFollowers` records nothing rather than guessing when the
   markup changes.
-- Post-campaign truth arrives as a CSV upload (Phase 6).
+- Post-campaign truth arrives as a CSV upload (Phase 5).
 
 This is not only a limitation. It settles where we sit: everything around
 Kickstarter, nothing inside it.
