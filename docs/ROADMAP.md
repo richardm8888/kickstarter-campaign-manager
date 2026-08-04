@@ -40,6 +40,16 @@ communities or press gets nothing.
   input.
 - UTM tagging and source attribution on signups, so growth can be split by
   channel rather than assumed to be paid.
+- **Budget triage**, asked immediately after the project details and before
+  anything else. See [budget triage](#budget-triage) below. "I don't know
+  yet" is a first-class answer that routes into the recommendation rather
+  than blocking.
+- **Reward tiers replace the average pledge field.** Asking for one number
+  makes the creator do our job. They enter tier names and prices; we apply
+  the tabletop distribution — core tier takes 55–70% of backers, average
+  pledge lands 15–35% above the core price once add-ons and upgrades are
+  counted — show the working, and let them override. Comparables improve
+  the estimate once Phase 2 lands.
 
 ## Phase 2 — Value before they spend anything
 
@@ -50,16 +60,51 @@ first-timer has no reason to return tomorrow.
   outcomes, and what their audience looked like at launch. Replaces our
   hardcoded benchmarks with real ones and gives a first session substance.
   Sourced from public scrape datasets — Kickstarter retired its public API.
+  Live and ended campaign pages expose reward tiers, per-tier backer counts
+  and total raised, so real average pledges are derivable: "twelve similar
+  games priced their core tier at £39 and averaged £52 a backer." A
+  pre-launch page exposes none of that, which is why our own project's
+  tiers have to be entered by hand.
 - **Goal viability check.** Manufacturing, shipping and fees against the
   funding goal: "£25,000 funds 340 units and leaves you £2,000 short."
   Requires no integrations, and it is the question first-timers get wrong.
 
-## Phase 3 — The ad builder
+## Phase 3 — Meta OAuth, and concierge onboarding alongside it
+
+Today a creator must build their own app at developers.facebook.com and
+generate a token by hand. It is the worst moment in the product by a
+distance, and it is entirely self-inflicted.
+
+- **"Continue with Facebook".** Needs Business Verification and App Review
+  for `ads_management`, `ads_read`, `leads_retrieval`, `pages_show_list`
+  and `business_management` — a registered business, a privacy policy, and
+  a screencast per permission that a reviewer actually tests. Mostly
+  waiting rather than building, so start it early.
+- **Concierge onboarding**, paid, for the first ~50 customers. Run it
+  *before* the OAuth build, not after: fifty setup calls are the spec for
+  what to automate, and they prove the pain is worth engineering against.
+  Put the cap in writing — if it is still running at customer 200, the
+  product never got easier and the calls became the business.
+
+### What can never be automated
+
+| Automatable | Manual, always |
+| --- | --- |
+| Create the pixel | Have a Facebook Page |
+| Create the Instant Form | Ad account with a **payment method** — Meta will never let us add a card |
+| Create campaigns, ad sets, ads | Paste the pixel ID into Kickstarter's project settings |
+| Upload creative, read insights and leads | Everything on Kickstarter itself |
+
+With OAuth done, first-run setup drops from roughly 45 minutes of
+developer-console navigation to about 15 minutes of Page and payment
+method. That is a normal onboarding; today's is not.
+
+## Phase 4 — The ad builder
 
 Assets and a budget in; correctly configured campaigns out. See the
 [ad builder design](#ad-builder-design) below.
 
-## Phase 4 — Launch week and the live campaign
+## Phase 5 — Launch week and the live campaign
 
 We cover roughly eight weeks of a twelve-month journey, and the thirty days
 that decide the outcome are invisible.
@@ -69,11 +114,17 @@ that decide the outcome are invisible.
 - Live funding velocity against comparables, mid-campaign slump prediction,
   update cadence prompts.
 
-## Phase 5 — Campaign over campaign
+## Phase 6 — Campaign over campaign
 
 The retention answer and the moat: nobody else holds your last campaign's
 data. "At 40 days out you had 610 followers; you have 418 now." First-timers
 become repeat users because leaving means abandoning their history.
+
+- **Import the Kickstarter backer report.** A CSV upload, because there is
+  no API — the same route BackerKit and Gamefound use. It is the only way
+  to ever learn a creator's *actual* list-to-backer conversion, actual
+  average pledge and actual channel performance, which is what turns our
+  published rates into their measured ones.
 
 ## Later
 
@@ -83,14 +134,61 @@ become repeat users because leaving means abandoning their history.
   should live behind a single profile object from Phase 1 onward rather than
   being scattered as constants — see `BackerRates`, the default average
   pledge, and the ad interest set.
-- Proper Meta OAuth plus App Review, replacing "create your own Meta app",
-  which is the worst moment in the product.
 - Lookalike audiences once a list clears 100 subscribers.
 - Cross-promotion between creators on the platform — a real network effect,
   and standard practice in tabletop already.
 - Premium tier. Candidates: campaign-over-campaign history, ad builder
   beyond the first campaign, comparables depth. Nothing gated before we
   have traction.
+
+## Kickstarter has no usable API
+
+Worth stating plainly, because it constrains everything. The old public API
+was never officially supported and its endpoints are closed. There is no
+partner programme and no write API: we can never create a project, set
+rewards, or launch on a creator's behalf. Even BackerKit and Gamefound take
+backer data as a CSV the creator downloads.
+
+Consequences:
+
+- Work *on* Kickstarter is always the creator's. We guide, we do not do.
+- Follower counts come from scraping a public page, which is why
+  `KickstarterFollowers` records nothing rather than guessing when the
+  markup changes.
+- Post-campaign truth arrives as a CSV upload (Phase 6).
+
+This is not only a limitation. It settles where we sit: everything around
+Kickstarter, nothing inside it.
+
+## Budget triage
+
+Asked once, right after the project details, because it is the single most
+determinative input and the answer reshapes the product.
+
+The arithmetic behind the advice, at our benchmark rates: £0.85 a click and
+22% converting puts an email signup at about **£3.86**, against the £0.90 a
+standard subscriber is worth (2% × £45). Buying email signups is roughly
+four times underwater. A Kickstarter follower is worth £9, so ads that buy
+*follows* clear comfortably. **Paid ads should mostly buy Kickstarter
+followers; a landing-page email funnel usually cannot pay for itself.**
+
+Meta also needs roughly 50 conversions per ad set per week to leave the
+learning phase, which at £4–8 a follow is £200–400 a week just to make one
+ad set function. Hence the floors:
+
+| Budget | Advice |
+| --- | --- |
+| £0 | Organic playbook. A legitimate path, not a consolation prize. |
+| Under ~£300 | Not enough to learn — £100 buys ~118 clicks, a weekend of noise. Concentrate it into a two-week burst before launch, or spend it on better product photography. |
+| £300–1,500 | One ad set, one destination: Kickstarter follows. Do not split three ways. |
+| £1,500–5,000 | The full three-ad structure with room to test. |
+| £5,000+ | Add lookalikes and retargeting. |
+
+Because we already measure organic growth rate, the trade-off becomes a
+calculation rather than a lecture: *"you are adding 40 a week; you need 880
+more; that is 22 weeks organically, £2,400 of ads over the 8 weeks you have,
+or a mix."* Three routes to the same target, and it works on day one with
+nothing connected.
 
 ## Ad builder design
 
