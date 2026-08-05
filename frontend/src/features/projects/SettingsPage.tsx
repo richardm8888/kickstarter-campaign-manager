@@ -176,9 +176,8 @@ export function SettingsPage() {
                 onChange={set('kickstarter_url')}
               />
               <p className="text-xs text-muted-foreground">
-                We audit this page and read anything it makes public. Followers back at around 20%
-                against 2% for a plain email subscriber, so they are the number worth watching —
-                but Kickstarter keeps the count to your dashboard, so record it below.
+                We check it every hour for your follower count. Followers back at around 20% against
+                2% for a plain email subscriber, so they are the number worth watching.
               </p>
               <FieldError messages={errors.kickstarter_url} />
             </div>

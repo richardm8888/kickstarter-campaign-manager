@@ -89,7 +89,18 @@ class InspectKickstarterCommand extends Command
         }
     }
 
-    /** Every visible mention, so a count in plain text is not missed. */
+    /**
+     * Every visible mention, best first.
+     *
+     * Ranking is the whole point. Kickstarter ships a feature-flag blob at
+     * the top of the document containing dozens of numbered names like
+     * `backer_report_update_2024`, and taking mentions in document order
+     * let that noise exhaust the cap before the scan reached the body —
+     * which hid a perfectly ordinary "19 followers" and had us conclude
+     * the count was not published at all. A truncated search is not
+     * evidence of absence, so what survives truncation must be the
+     * strongest candidates rather than merely the earliest.
+     */
     private function reportMentions(string $html): void
     {
         $this->newLine();
@@ -97,32 +108,45 @@ class InspectKickstarterCommand extends Command
 
         preg_match_all('/follow(?:er|ing)?s?|backers?/i', $html, $m, PREG_OFFSET_CAPTURE);
 
-        $seen = [];
+        $snippets = [];
 
         foreach ($m[0] as [, $offset]) {
-            $snippet = preg_replace(
+            $snippet = trim(preg_replace(
                 '/\s+/', ' ',
                 substr($html, max(0, $offset - self::CONTEXT), self::CONTEXT * 2),
-            );
+            ));
 
-            // Kickstarter repeats the same markup dozens of times; only
-            // snippets carrying a number can tell us anything.
-            if (! preg_match('/\d/', $snippet) || isset($seen[$snippet])) {
-                continue;
-            }
-
-            $seen[$snippet] = true;
-            $this->line('  … '.trim($snippet).' …');
-
-            if (count($seen) >= self::MAX_SNIPPETS) {
-                $this->line('  <fg=gray>(more suppressed)</>');
-
-                return;
+            if (preg_match('/\d/', $snippet) === 1) {
+                $snippets[$snippet] = $this->rank($snippet);
             }
         }
 
-        if ($seen === []) {
+        if ($snippets === []) {
             $this->components->warn('No mention carries a number. The count may not be public.');
+
+            return;
         }
+
+        arsort($snippets);
+        $shown = array_slice($snippets, 0, self::MAX_SNIPPETS, true);
+
+        foreach ($shown as $snippet => $rank) {
+            $this->line(($rank > 0 ? '  <fg=green>▸</> ' : '  … ').$snippet.' …');
+        }
+
+        if (count($snippets) > count($shown)) {
+            $this->line('  <fg=gray>('.(count($snippets) - count($shown)).' lower-ranked suppressed)</>');
+        }
+    }
+
+    /** Higher means more likely to be a real audience figure. */
+    private function rank(string $snippet): int
+    {
+        return match (true) {
+            (bool) preg_match('/data-test-id="[^"]*(?:follower|backer)[^"]*"/i', $snippet) => 3,
+            (bool) preg_match('/\b[\d,.]+\s*[KM]?\s+(?:followers?|backers?)\b/i', $snippet) => 2,
+            (bool) preg_match('/"(?:follower|backer)[a-z_]*"\s*:\s*"?\d/i', $snippet) => 1,
+            default => 0,
+        };
     }
 }

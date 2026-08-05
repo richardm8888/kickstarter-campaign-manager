@@ -40,14 +40,15 @@ class SyncKickstarterFollowersCommand extends Command
             $this->info("{$project->name}: {$count} followers");
         }
 
-        // Not finding a count is the normal outcome, not a failure: a
-        // pre-launch page carries no follower count at all, only a "Notify
-        // me on launch" button. Reporting it as an error made a scheduled
-        // run look broken every hour and taught people to ignore it.
+        // A page that shows no count is not a failed run — a project can
+        // be too new, or Kickstarter can change its markup. Either way the
+        // creator can record the figure by hand, so this stays a notice
+        // rather than an hourly red error nobody reads by week two.
         if ($unread > 0) {
             $this->components->info(
-                "{$unread} page(s) published no follower count. Kickstarter shows that "
-                .'number in your creator dashboard only — enter it in Settings to track it.',
+                "{$unread} page(s) showed no follower count. If yours does show one, run "
+                .'kickstarter:inspect against it — the pattern may need updating. '
+                .'Meanwhile it can be entered by hand in Settings.',
             );
         }
 

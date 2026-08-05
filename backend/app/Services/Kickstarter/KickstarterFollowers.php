@@ -90,20 +90,48 @@ class KickstarterFollowers
     public function extract(string $html): ?int
     {
         $patterns = [
-            '/"follower[_s]?count"\s*:\s*"?(\d[\d,]*)"?/i',
-            '/"followers"\s*:\s*"?(\d[\d,]*)"?/i',
-            '/data-follower[s]?-count\s*=\s*"(\d[\d,]*)"/i',
-            '/>\s*(\d[\d,]*)\s*<[^>]*>?\s*followers/i',
-            '/\b(\d[\d,]*)\s+followers\b/i',
+            // What a pre-launch page actually renders. A test id is not a
+            // contract either, but it is the most stable handle on the
+            // page and it changes far less often than class names.
+            '/data-test-id="followers-count"[^>]*>\s*([\d,.]+\s*[KM]?)/i',
+            '/"follower[_s]?count"\s*:\s*"?([\d,.]+\s*[KM]?)"?/i',
+            '/"followers"\s*:\s*"?([\d,.]+\s*[KM]?)"?/i',
+            '/data-follower[s]?-count\s*=\s*"([\d,.]+\s*[KM]?)"/i',
+            // The number in its own element: <span>2,048</span> followers.
+            '/>\s*([\d,.]+\s*[KM]?)\s*<[^>]*>?\s*followers/i',
+            // Last, and loosest: any number immediately before the word.
+            '/\b([\d,.]+\s*[KM]?)\s+followers\b/i',
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $html, $matches) === 1) {
-                return (int) str_replace(',', '', $matches[1]);
+                return $this->toCount($matches[1]);
             }
         }
 
         return null;
+    }
+
+    /**
+     * Kickstarter abbreviates large counts, so "1.2K" has to mean 1,200
+     * rather than 1. Abbreviated figures are lossy by nature — 1.2K is
+     * anything from 1,150 to 1,249 — but a rounded count beats none.
+     */
+    private function toCount(string $raw): ?int
+    {
+        $value = str_replace([',', ' '], '', trim($raw));
+
+        $multiplier = match (strtoupper(substr($value, -1))) {
+            'K' => 1_000,
+            'M' => 1_000_000,
+            default => 1,
+        };
+
+        if ($multiplier > 1) {
+            $value = substr($value, 0, -1);
+        }
+
+        return is_numeric($value) ? (int) round((float) $value * $multiplier) : null;
     }
 
     private function assertKickstarterUrl(string $url): void

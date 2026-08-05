@@ -177,23 +177,30 @@ backer data as a CSV the creator downloads.
 Consequences:
 
 - Work *on* Kickstarter is always the creator's. We guide, we do not do.
-- **Follower counts are not public.** Measured against a real pre-launch
-  page: it carries a "Notify me on launch" button and no count anywhere in
-  the HTML — no `followers_count`, no `is_following`, nothing. The number
-  exists only in the creator's dashboard. So the creator records it
-  (`POST /projects/{id}/kickstarter-followers`) and we keep every reading as
-  a growth curve. `KickstarterFollowers` still runs in case a page ever
-  exposes one, but it is no longer the mechanism, and finding nothing is
-  reported as normal rather than as a failure.
+- Follower counts are scraped from the public page, which renders them as
+  `<p data-test-id="followers-count">19 followers</p>`. That test id is the
+  most stable handle available but is still not a contract, so
+  `KickstarterFollowers` records nothing rather than guessing when it
+  changes, and `KickstarterFollowerScrapeTest` pins the patterns to markup
+  taken verbatim from a real page.
+- Because the markup can change, a creator can also record the count by
+  hand (`POST /projects/{id}/kickstarter-followers`). Readings from both
+  paths are append-only and build one growth curve.
 - Fetching a Kickstarter page at all needs the full browser header set in
   `BrowserHeaders` — Cloudflare answers `403 cf-mitigated: challenge`
   without client hints. `php artisan page:diagnose <url>` re-measures this
-  from the host being refused if it ever stops working.
+  from the host being refused if it ever stops working, and
+  `php artisan kickstarter:inspect <url>` shows what a page exposes when a
+  pattern needs rewriting.
 - Post-campaign truth arrives as a CSV upload (Phase 5).
 
-Worth revisiting only if a rendered fetch (headless Chromium) is ever built
-for the page audit: if the count is injected client-side rather than absent,
-that would find it. The evidence says absent, not hidden.
+A caution learnt the hard way: `kickstarter:inspect` originally capped its
+output in document order, and Kickstarter's feature-flag blob at the top of
+every page (`backer_report_update_2024` and forty others) exhausted the cap
+before the scan reached the body. That hid an ordinary "19 followers" and
+led to a confident conclusion that the count was not published at all. The
+command now ranks matches before truncating. **A truncated search is not
+evidence of absence.**
 
 This is not only a limitation. It settles where we sit: everything around
 Kickstarter, nothing inside it.

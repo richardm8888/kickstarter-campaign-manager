@@ -9,11 +9,13 @@ import { Label } from '@/components/ui/label'
 import { FieldError } from '@/features/auth/AuthLayout'
 
 /**
- * Kickstarter publishes no follower count. A pre-launch page carries only
- * a "Notify me on launch" button — the number lives in the creator's
- * dashboard, where only they can read it. Since followers back at roughly
- * ten times the rate of an email subscriber, a figure typed in weekly is
- * worth far more than an automated one that never arrives.
+ * A manual override for the hourly scrape.
+ *
+ * The count is read off the public page, but Kickstarter's markup is not
+ * a contract and the scrape records nothing rather than guessing when it
+ * changes. Followers back at roughly ten times the rate of an email
+ * subscriber, so the segment is too valuable to have no way in at all
+ * while a pattern is being fixed.
  */
 export function FollowerEntry({ projectId, hasKickstarterUrl }: {
   projectId: string
@@ -42,10 +44,10 @@ export function FollowerEntry({ projectId, hasKickstarterUrl }: {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Kickstarter followers</CardTitle>
+        <CardTitle>Record followers by hand</CardTitle>
         <CardDescription>
-          Kickstarter shows this number to you and nobody else, so we cannot read it off your page.
-          Check your dashboard when you think of it — weekly is plenty — and record it here.
+          We read this from your page every hour. Use this when the count on your dashboard
+          disagrees with ours, or if we ever stop being able to read it.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -75,12 +77,11 @@ export function FollowerEntry({ projectId, hasKickstarterUrl }: {
 
         <p className="text-xs text-muted-foreground">
           {hasKickstarterUrl ? (
-            <>
-              Find it under Dashboard → your project on kickstarter.com. Each entry is kept, so the
-              graph builds a growth curve as you go.
-            </>
+            <>Every reading is kept, so entries and hourly readings build one growth curve.</>
           ) : (
-            <>Add your Kickstarter page above first so we can score it and link the two.</>
+            <>
+              Add your Kickstarter page above and we will read this for you every hour.
+            </>
           )}
         </p>
       </CardContent>
