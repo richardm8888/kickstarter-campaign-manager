@@ -52,8 +52,12 @@ class PageFetcher
             }
 
             if (! $response->redirect()) {
+                $body = $response->body();
+
+                $this->assertReadable($body, $response->header('Content-Encoding'));
+
                 return new FetchedPage(
-                    html: $response->body(),
+                    html: $body,
                     url: $current,
                     status: $response->status(),
                     elapsedMs: (int) ((microtime(true) - $startedAt) * 1000),
@@ -75,5 +79,23 @@ class PageFetcher
         }
 
         throw new RuntimeException('That URL redirected too many times.');
+    }
+
+    /**
+     * We ask for brotli because dropping it from the header set is what
+     * Cloudflare's challenge notices. curl only decodes it when built with
+     * brotli support, so a build without it hands back compressed bytes
+     * with a 200 — and every content check would fail against binary,
+     * scoring the creator's page at nought for our problem.
+     */
+    private function assertReadable(string $body, string $encoding): void
+    {
+        if ($body === '' || str_contains(strtolower(substr($body, 0, 1024)), '<')) {
+            return;
+        }
+
+        throw new RuntimeException($encoding !== ''
+            ? "That page came back {$encoding}-compressed and we could not decode it."
+            : 'That page did not return readable HTML.');
     }
 }

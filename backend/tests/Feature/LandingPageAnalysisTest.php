@@ -166,8 +166,33 @@ class LandingPageAnalysisTest extends TestCase
         $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
             ->assertCreated();
 
+        // Client hints are the part Cloudflare's challenge weighs: without
+        // them a live Kickstarter page returns 403 cf-mitigated: challenge,
+        // and with them it returns the page. Measured, not assumed.
         Http::assertSent(fn ($request) => str_contains($request->header('User-Agent')[0], 'Chrome/')
-            && $request->hasHeader('Accept-Language'));
+            && $request->hasHeader('Accept-Language')
+            && $request->hasHeader('sec-ch-ua')
+            && $request->hasHeader('sec-ch-ua-platform'));
+    }
+
+    public function test_a_body_we_cannot_decode_is_not_scored_as_an_empty_page(): void
+    {
+        // We ask for brotli because dropping it fails the challenge, but a
+        // curl built without it hands back compressed bytes and a 200.
+        Http::fake(['https://example.com*' => Http::response(
+            "\x1b\x2a\x00\x00\x24\xb0\xe2\x99\x80\x12",
+            200,
+            ['Content-Encoding' => 'br'],
+        )]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('url');
+
+        $this->assertSame(0, $project->landingPageAnalyses()->count());
     }
 
     public function test_other_users_cannot_analyse_a_project_they_do_not_own(): void

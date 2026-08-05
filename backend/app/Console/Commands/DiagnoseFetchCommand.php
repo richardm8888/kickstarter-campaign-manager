@@ -51,17 +51,13 @@ class DiagnoseFetchCommand extends Command
             // Establishes the baseline: what a bare HTTP client gets.
             'no headers' => [],
 
-            'what we send now' => $browser,
+            // Client hints are the part Cloudflare's challenge weighs, so
+            // dropping them shows whether they are still what carries us.
+            'browser, no client hints' => array_diff_key($browser, array_flip([
+                'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+            ])),
 
-            // Client hints are what a current Chrome adds on top. If only
-            // this one succeeds, the header set is simply incomplete.
-            'browser + client hints' => $browser + [
-                'sec-ch-ua' => '"Chromium";v="128", "Not(A:Brand";v="24", "Google Chrome";v="128"',
-                'sec-ch-ua-mobile' => '?0',
-                'sec-ch-ua-platform' => '"macOS"',
-                'Accept-Encoding' => 'gzip, deflate, br',
-                'Referer' => 'https://www.google.com/',
-            ],
+            'what we send now' => $browser,
         ];
     }
 
@@ -86,12 +82,17 @@ class DiagnoseFetchCommand extends Command
         }
 
         $status = $response->status();
-        $size = strlen($response->body());
+        $body = $response->body();
         $colour = $response->successful() ? 'green' : 'red';
+
+        // A 200 of undecodable bytes is not a success — say which it was.
+        $readable = str_contains(strtolower(substr($body, 0, 1024)), '<html')
+            ? 'HTML'
+            : '<fg=yellow>not HTML</>';
 
         $this->components->twoColumnDetail(
             $name,
-            "<fg={$colour}>HTTP {$status}</> · ".number_format($size).' bytes',
+            "<fg={$colour}>HTTP {$status}</> · ".number_format(strlen($body))." bytes · {$readable}",
         );
 
         // Which system refused matters: Cloudflare blocks on IP reputation
@@ -109,12 +110,18 @@ class DiagnoseFetchCommand extends Command
     private function verdict(array $results): void
     {
         $statuses = array_column($results, 'status');
-        $anyOk = array_filter($statuses, fn (?int $s) => $s !== null && $s >= 200 && $s < 300);
+        $shipped = $results['what we send now']['status'] ?? null;
 
-        if ($anyOk !== []) {
-            $this->components->info(
-                'A header profile got through. The fix is in our headers — '
-                .'tell Claude which profile above returned 200.',
+        if ($shipped !== null && $shipped >= 200 && $shipped < 300) {
+            $this->components->info('What we send now gets through. Nothing to fix here.');
+
+            return;
+        }
+
+        if (array_filter($statuses, fn (?int $s) => $s !== null && $s >= 200 && $s < 300) !== []) {
+            $this->components->warn(
+                'A weaker profile got through but ours did not, which means a header '
+                .'we send is now the thing being judged. Note which profile passed.',
             );
 
             return;
@@ -122,11 +129,11 @@ class DiagnoseFetchCommand extends Command
 
         if (in_array(403, $statuses, true) || in_array(429, $statuses, true)) {
             $this->components->warn(
-                'Every profile was refused. That points at this server rather than '
-                .'the request: the host is judging the IP or the TLS fingerprint, '
-                .'and no amount of header work will change it. Run the same URL '
-                .'from your laptop to confirm — if it loads there and not here, '
-                .'it is the droplet.',
+                'Every profile was refused, including ours. If cf-mitigated says '
+                .'challenge, the header set has stopped being enough. If it does '
+                .'not, this server is being judged on its IP or TLS fingerprint and '
+                .'no header will change that — open the URL on your laptop to tell '
+                .'the two apart.',
             );
 
             return;
