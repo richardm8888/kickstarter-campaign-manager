@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getProject, updateProject } from './api'
+import { FollowerEntry } from './FollowerEntry'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -175,8 +176,9 @@ export function SettingsPage() {
                 onChange={set('kickstarter_url')}
               />
               <p className="text-xs text-muted-foreground">
-                We check it every hour for your follower count. Followers back at around 20% against
-                2% for a plain email subscriber, so they are the number worth watching.
+                We audit this page and read anything it makes public. Followers back at around 20%
+                against 2% for a plain email subscriber, so they are the number worth watching —
+                but Kickstarter keeps the count to your dashboard, so record it below.
               </p>
               <FieldError messages={errors.kickstarter_url} />
             </div>
@@ -194,6 +196,12 @@ export function SettingsPage() {
           )}
         </div>
       </form>
+
+      {/* Its own form posting to its own endpoint, so it sits outside the
+          settings form rather than nested inside it. */}
+      <div className="mt-4">
+        <FollowerEntry projectId={projectId} hasKickstarterUrl={form.kickstarter_url !== ''} />
+      </div>
     </>
   )
 }

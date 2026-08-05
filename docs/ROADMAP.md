@@ -177,10 +177,23 @@ backer data as a CSV the creator downloads.
 Consequences:
 
 - Work *on* Kickstarter is always the creator's. We guide, we do not do.
-- Follower counts come from scraping a public page, which is why
-  `KickstarterFollowers` records nothing rather than guessing when the
-  markup changes.
+- **Follower counts are not public.** Measured against a real pre-launch
+  page: it carries a "Notify me on launch" button and no count anywhere in
+  the HTML — no `followers_count`, no `is_following`, nothing. The number
+  exists only in the creator's dashboard. So the creator records it
+  (`POST /projects/{id}/kickstarter-followers`) and we keep every reading as
+  a growth curve. `KickstarterFollowers` still runs in case a page ever
+  exposes one, but it is no longer the mechanism, and finding nothing is
+  reported as normal rather than as a failure.
+- Fetching a Kickstarter page at all needs the full browser header set in
+  `BrowserHeaders` — Cloudflare answers `403 cf-mitigated: challenge`
+  without client hints. `php artisan page:diagnose <url>` re-measures this
+  from the host being refused if it ever stops working.
 - Post-campaign truth arrives as a CSV upload (Phase 5).
+
+Worth revisiting only if a rendered fetch (headless Chromium) is ever built
+for the page audit: if the count is injected client-side rather than absent,
+that would find it. The evidence says absent, not hidden.
 
 This is not only a limitation. It settles where we sit: everything around
 Kickstarter, nothing inside it.

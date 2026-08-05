@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ForecastController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InsightController;
+use App\Http\Controllers\Api\KickstarterFollowerController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\LandingPageController;
 use App\Http\Controllers\Api\MailerLiteGroupController;
@@ -89,6 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/page-analyses', [PageAnalysisController::class, 'index']);
         Route::post('/page-analyses', [PageAnalysisController::class, 'store']);
+
+        Route::post('/kickstarter-followers', [KickstarterFollowerController::class, 'store']);
 
         Route::get('/landing-page', [LandingPageController::class, 'show']);
         Route::patch('/landing-page', [LandingPageController::class, 'update']);
