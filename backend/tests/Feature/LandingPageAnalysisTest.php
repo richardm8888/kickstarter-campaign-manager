@@ -145,6 +145,35 @@ class LandingPageAnalysisTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_analyses_saved_before_three_state_results_are_read_forward(): void
+    {
+        // Rows written by the two-state version are still in every existing
+        // project's history. Serving them without a `result` crashed the
+        // page that renders them, so the shape is completed on read.
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        \DB::table('landing_page_analyses')->insert([
+            'project_id' => $project->id,
+            'url' => 'https://example.com',
+            'page_type' => 'landing',
+            'score' => 60,
+            'checks' => json_encode([
+                ['key' => 'email_capture', 'label' => 'Captures email addresses', 'passed' => true, 'weight' => 25, 'recommendation' => ''],
+                ['key' => 'video', 'label' => 'Has a video', 'passed' => false, 'weight' => 15, 'recommendation' => 'Add one'],
+            ]),
+            'summary' => 'Old analysis',
+            'created_at' => now(),
+        ]);
+
+        $checks = collect($this->getJson("/api/projects/{$project->id}/page-analyses")->assertOk()
+            ->json('analyses.0.checks'))->keyBy('key');
+
+        $this->assertSame('pass', $checks['email_capture']['result']);
+        $this->assertSame('fail', $checks['video']['result']);
+        $this->assertNull($checks['video']['detail']);
+    }
+
     public function test_a_javascript_loaded_form_counts_as_email_capture(): void
     {
         // MailerLite (and most providers) inject the form at runtime, so the

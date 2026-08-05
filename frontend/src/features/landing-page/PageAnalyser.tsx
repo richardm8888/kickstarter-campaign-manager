@@ -38,11 +38,26 @@ const COPY: Record<PageType, { title: string; description: string; placeholder: 
   },
 }
 
+/**
+ * Analyses saved before three-state results shipped have no `result`, and a
+ * stored analysis is read for as long as the project exists. Resolve it once
+ * here so nothing downstream indexes a lookup with undefined.
+ */
+function resultOf(check: PageCheck): PageCheck['result'] {
+  if (check.result === 'pass' || check.result === 'fail' || check.result === 'unknown') {
+    return check.result
+  }
+
+  return check.passed ? 'pass' : 'fail'
+}
+
 /** Checks first by outcome, then by what costs the most. */
 function orderChecks(checks: PageCheck[]): PageCheck[] {
   const rank = { fail: 0, unknown: 1, pass: 2 } as const
 
-  return [...checks].sort((a, b) => rank[a.result] - rank[b.result] || b.weight - a.weight)
+  return [...checks].sort(
+    (a, b) => rank[resultOf(a)] - rank[resultOf(b)] || (b.weight ?? 0) - (a.weight ?? 0),
+  )
 }
 
 export function PageAnalyser({
@@ -172,25 +187,29 @@ function Result({ analysis }: { analysis: PageAnalysis }) {
       <section className="mt-4">
         <h3 className="text-sm font-medium">Checks</h3>
         <ul className="mt-2 flex flex-col gap-2">
-          {orderChecks(analysis.checks).map((check) => (
-            <li key={check.key} className="flex gap-2.5">
-              <CheckIcon result={check.result} />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {check.label}
-                  {check.detail && (
-                    <span className="ml-1.5 font-normal text-muted-foreground">{check.detail}</span>
+          {orderChecks(analysis.checks).map((check) => {
+            const result = resultOf(check)
+
+            return (
+              <li key={check.key} className="flex gap-2.5">
+                <CheckIcon result={result} />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {check.label}
+                    {check.detail && (
+                      <span className="ml-1.5 font-normal text-muted-foreground">{check.detail}</span>
+                    )}
+                    <span className="sr-only">
+                      : {result === 'pass' ? 'passed' : result === 'fail' ? 'needs work' : 'could not tell'}
+                    </span>
+                  </p>
+                  {result !== 'pass' && check.recommendation && (
+                    <p className="text-sm text-muted-foreground">{check.recommendation}</p>
                   )}
-                  <span className="sr-only">
-                    : {check.result === 'pass' ? 'passed' : check.result === 'fail' ? 'needs work' : 'could not tell'}
-                  </span>
-                </p>
-                {check.result !== 'pass' && check.recommendation && (
-                  <p className="text-sm text-muted-foreground">{check.recommendation}</p>
-                )}
-              </div>
-            </li>
-          ))}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       </section>
     </div>
