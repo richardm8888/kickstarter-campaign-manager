@@ -28,6 +28,14 @@ class UxCritic
 
     private const MAX_FINDINGS = 6;
 
+    /**
+     * Six findings with a body and a fix each do not fit in the default
+     * ceiling. Undersizing this does not shorten the reply, it cuts it off
+     * mid-object, and an unparseable array reads at the far end as "the AI
+     * found nothing wrong with your page".
+     */
+    private const MAX_TOKENS = 3000;
+
     private const SEVERITIES = ['critical', 'warning', 'idea'];
 
     public function __construct(private readonly AiProvider $ai) {}
@@ -40,7 +48,11 @@ class UxCritic
         }
 
         try {
-            $raw = $this->ai->complete($this->system($pageType), $this->prompt($content, $pageType));
+            $raw = $this->ai->complete(
+                $this->system($pageType),
+                $this->prompt($content, $pageType),
+                self::MAX_TOKENS,
+            );
         } catch (Throwable $e) {
             Log::warning('UX critique failed', ['error' => $e->getMessage()]);
 
@@ -129,16 +141,29 @@ class UxCritic
     private function parse(string $raw): array
     {
         $start = strpos($raw, '[');
-        $end = strrpos($raw, ']');
 
-        if ($start === false || $end === false || $end < $start) {
+        if ($start === false) {
+            Log::warning('UX critique returned no JSON array', ['reply' => mb_substr($raw, 0, 500)]);
+
             return [];
         }
 
-        $decoded = json_decode(substr($raw, $start, $end - $start + 1), true);
+        $body = substr($raw, $start);
+        $end = strrpos($body, ']');
 
+        $decoded = $end === false
+            ? null
+            : json_decode(substr($body, 0, $end + 1), true);
+
+        // A reply cut short loses its closing bracket and takes the whole
+        // array down with it. The findings before the cut are still good
+        // advice, so salvage them rather than showing the creator nothing.
         if (! is_array($decoded)) {
-            return [];
+            $decoded = $this->salvage($body);
+        }
+
+        if ($decoded === []) {
+            Log::warning('UX critique returned unparseable JSON', ['reply' => mb_substr($raw, 0, 500)]);
         }
 
         $findings = [];
@@ -163,6 +188,54 @@ class UxCritic
         }
 
         return $findings;
+    }
+
+    /**
+     * Pulls whole objects out of a partial array by walking braces, so a
+     * reply that stops mid-finding still yields the complete ones ahead of
+     * it. Brace counting is enough because the objects are flat.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function salvage(string $body): array
+    {
+        $objects = [];
+        $depth = 0;
+        $startedAt = null;
+        $inString = false;
+        $escaped = false;
+
+        foreach (str_split($body) as $i => $char) {
+            if ($escaped) {
+                $escaped = false;
+
+                continue;
+            }
+
+            if ($inString) {
+                match ($char) {
+                    '\\' => $escaped = true,
+                    '"' => $inString = false,
+                    default => null,
+                };
+
+                continue;
+            }
+
+            match ($char) {
+                '"' => $inString = true,
+                '{' => $depth++ === 0 ? $startedAt = $i : null,
+                '}' => --$depth === 0 && $startedAt !== null
+                    ? $objects[] = substr($body, $startedAt, $i - $startedAt + 1)
+                    : null,
+                default => null,
+            };
+        }
+
+        return array_values(array_filter(array_map(
+            fn (string $json) => json_decode($json, true),
+            $objects,
+        ), is_array(...)));
     }
 
     private function yesNo(bool $value): string

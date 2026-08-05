@@ -15,7 +15,7 @@ class NullAiProvider implements AiProvider
         return false;
     }
 
-    public function complete(string $system, string $prompt): ?string
+    public function complete(string $system, string $prompt, int $maxTokens = 1024): ?string
     {
         return null;
     }

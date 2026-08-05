@@ -156,6 +156,30 @@ class PageAuditTest extends TestCase
         $this->assertSame($withoutAi, $withAi, 'the AI must never move the score');
     }
 
+    public function test_a_reply_cut_off_mid_finding_keeps_the_complete_ones(): void
+    {
+        // Hitting the token ceiling loses the closing bracket, which took
+        // the whole array down with it and read at the far end as "the AI
+        // found nothing wrong with your page".
+        $this->fakeCriticReply(<<<'JSON'
+        [{"severity":"critical","title":"Nobody learns what the game is",
+          "body":"The headline says \"Welcome\", which could front anything.",
+          "fix":"Say what it is in six words."},
+         {"severity":"warning","title":"No reason to act now","body":"b","fix":"f"},
+         {"severity":"warning","title":"Cut off half way th
+        JSON);
+
+        ['findings' => $findings] = $this->analyse(
+            '<html><body><h1>Welcome</h1><button>Sign up</button></body></html>'
+        );
+
+        $this->assertCount(2, $findings);
+        $this->assertSame('Nobody learns what the game is', $findings[0]['title']);
+        // The escaped quotes inside the salvaged object survive intact.
+        $this->assertStringContainsString('"Welcome"', $findings[0]['body']);
+        $this->assertSame('No reason to act now', $findings[1]['title']);
+    }
+
     public function test_findings_are_empty_when_no_ai_key_is_configured(): void
     {
         config(['services.anthropic.key' => null]);
@@ -193,11 +217,14 @@ class PageAuditTest extends TestCase
     /** @param  list<array<string, string>>  $findings */
     private function fakeCritic(array $findings): void
     {
-        $this->mock(AiProvider::class, function ($mock) use ($findings) {
+        $this->fakeCriticReply("Here is the review:\n```json\n".json_encode($findings)."\n```");
+    }
+
+    private function fakeCriticReply(string $reply): void
+    {
+        $this->mock(AiProvider::class, function ($mock) use ($reply) {
             $mock->shouldReceive('isConfigured')->andReturn(true);
-            $mock->shouldReceive('complete')->andReturn(
-                "Here is the review:\n```json\n".json_encode($findings)."\n```"
-            );
+            $mock->shouldReceive('complete')->andReturn($reply);
         });
     }
 }

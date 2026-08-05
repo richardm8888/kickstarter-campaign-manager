@@ -4,6 +4,7 @@ namespace App\Services\Kickstarter;
 
 use App\Models\Project;
 use App\Services\Analytics\MetricRecorder;
+use App\Support\BrowserHeaders;
 use App\Support\PublicUrl;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -69,11 +70,8 @@ class KickstarterFollowers
     {
         $this->assertKickstarterUrl($url);
 
-        $response = Http::withHeaders([
-            // Kickstarter serves a stripped page to unrecognised clients.
-            'User-Agent' => 'Mozilla/5.0 (compatible; LaunchOS/1.0; +https://github.com/richardm8888/kickstarter-campaign-manager)',
-            'Accept' => 'text/html,application/xhtml+xml',
-        ])->timeout(15)->retry(2, 500)->get($url);
+        $response = Http::withHeaders(BrowserHeaders::get())
+            ->timeout(15)->retry(2, 500)->get($url);
 
         if (! $response->successful()) {
             return null;

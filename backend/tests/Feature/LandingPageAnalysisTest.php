@@ -136,6 +136,40 @@ class LandingPageAnalysisTest extends TestCase
             ->assertJsonValidationErrors('url');
     }
 
+    public function test_a_page_that_blocks_us_is_not_scored_as_a_bad_page(): void
+    {
+        // Kickstarter and friends return 403 to automated readers. Every
+        // content check fails when there is no content, so storing that
+        // run would tell the creator their page scores 8 out of 100.
+        Http::fake(['https://example.com*' => Http::response('Forbidden', 403)]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('url');
+
+        $this->assertSame(0, $project->landingPageAnalyses()->count());
+    }
+
+    public function test_pages_are_fetched_as_a_browser_would(): void
+    {
+        // Announcing ourselves as a tool is the better instinct and it is
+        // what we did first, but bot protection 403s it, and we cannot
+        // read a creator's own public page without getting through.
+        Http::fake(['https://example.com*' => Http::response($this->goodPage())]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
+            ->assertCreated();
+
+        Http::assertSent(fn ($request) => str_contains($request->header('User-Agent')[0], 'Chrome/')
+            && $request->hasHeader('Accept-Language'));
+    }
+
     public function test_other_users_cannot_analyse_a_project_they_do_not_own(): void
     {
         $project = Project::factory()->create();

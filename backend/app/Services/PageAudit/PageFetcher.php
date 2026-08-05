@@ -2,6 +2,7 @@
 
 namespace App\Services\PageAudit;
 
+use App\Support\BrowserHeaders;
 use App\Support\PublicUrl;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -18,6 +19,13 @@ class PageFetcher
 
     private const MAX_REDIRECTS = 3;
 
+    /**
+     * Being turned away is not a fact about the creator's page, so we say
+     * so rather than storing a near-zero score they cannot act on: every
+     * content check fails when there is no content to read.
+     */
+    private const BLOCKED = [401, 403, 429, 451];
+
     public function fetch(string $url): FetchedPage
     {
         PublicUrl::assertSafe($url);
@@ -29,14 +37,18 @@ class PageFetcher
             try {
                 $response = Http::withoutRedirecting()
                     ->timeout(self::TIMEOUT)
-                    ->withHeaders([
-                        // Some hosts serve a stripped page to unknown clients.
-                        'User-Agent' => 'Mozilla/5.0 (compatible; KickstarterLaunchOS/1.0; page auditor)',
-                        'Accept' => 'text/html,application/xhtml+xml',
-                    ])
+                    ->withHeaders(BrowserHeaders::get())
                     ->get($current);
             } catch (Throwable $e) {
                 throw new RuntimeException("Could not reach that URL: {$e->getMessage()}");
+            }
+
+            if (in_array($response->status(), self::BLOCKED, true)) {
+                throw new RuntimeException(
+                    'That page refused our request (HTTP '.$response->status().'). '
+                    .'It is up — the site is blocking automated readers, not you. '
+                    .'Try again in a few minutes.',
+                );
             }
 
             if (! $response->redirect()) {
