@@ -88,19 +88,33 @@ export interface EventSetup {
   }>
 }
 
+export type PageType = 'landing' | 'kickstarter'
+
 export interface PageCheck {
   key: string
   label: string
+  /** 'unknown' means we could not tell, and it is excluded from the score. */
+  result: 'pass' | 'fail' | 'unknown'
   passed: boolean
   weight: number
   recommendation: string
+  detail: string | null
+}
+
+export interface PageFinding {
+  severity: 'critical' | 'warning' | 'idea'
+  title: string
+  body: string
+  fix: string
 }
 
 export interface PageAnalysis {
   id: number
   url: string
+  page_type: PageType
   score: number
   checks: PageCheck[]
+  findings: PageFinding[] | null
   summary: string | null
   created_at: string
 }

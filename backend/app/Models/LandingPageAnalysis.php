@@ -9,13 +9,14 @@ class LandingPageAnalysis extends Model
 {
     public const UPDATED_AT = null;
 
-    protected $fillable = ['url', 'score', 'checks', 'summary'];
+    protected $fillable = ['url', 'page_type', 'score', 'checks', 'findings', 'summary'];
 
     protected function casts(): array
     {
         return [
             'score' => 'integer',
             'checks' => 'array',
+            'findings' => 'array',
         ];
     }
 

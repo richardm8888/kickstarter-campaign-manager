@@ -67,7 +67,13 @@ class LandingPageAnalysisTest extends TestCase
         $this->assertFalse($checks['email_capture']['passed']);
         $this->assertFalse($checks['headline']['passed']);
         $this->assertNotEmpty($checks['email_capture']['recommendation']);
-        $this->assertStringContainsString('captures email', strtolower($response->json('analysis.summary')));
+
+        // The summary names the next action, not the label of what failed:
+        // "biggest wins: captures email addresses" reads as though it does.
+        $this->assertStringContainsString(
+            'Start here: Add an email capture form',
+            $response->json('analysis.summary'),
+        );
     }
 
     public function test_analyses_are_kept_as_history(): void

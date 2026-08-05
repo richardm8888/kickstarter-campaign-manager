@@ -8,8 +8,9 @@ advisor, not another analytics dashboard.
 
 | Area | What it does |
 |---|---|
-| **Dashboard** | Visitors, subscribers, VIP upgrades, conversion, cost per subscriber, revenue, projected backers, funding forecast — with the full launch funnel (Ads → Landing page → Email → VIP → Notify → Backer) |
+| **Dashboard** | Visitors, subscribers, VIP upgrades, conversion, cost per subscriber, Kickstarter followers, projected backers, funding forecast — with the full launch funnel (impressions → clicks → landing page views \| form views → signups → VIPs → backers) |
 | **Landing page builder** | Opinionated template with hero, video, features, testimonials, FAQ, email capture, £1 VIP upgrade, CTA, footer. Configuration over freedom; public capture API included |
+| **Page audits** | Two analysers — your own landing page and your Kickstarter page — each scoring deterministic checks and then reading the page as a visitor would (see below) |
 | **Integrations** | Meta Ads, Google Analytics 4, MailerLite, Stripe behind one `Integration` contract (`connect / disconnect / sync / status`), synced into an append-only metrics store — metrics hourly, new contacts every five minutes |
 | **AI insights** | Rule-based signal detection (CPC spikes, conversion drops, list stalls, subscribers-needed) turned into plain-English recommendations; optional Anthropic-powered copy polish |
 | **Campaign health** | Weighted 0–100 readiness score across eight factors, each with a concrete next action |
@@ -254,6 +255,30 @@ group; every other purchase is counted as revenue only. On demand:
 ```bash
 docker compose exec backend php artisan stripe:import-vips
 ```
+
+**Page audits.** Both analysers live on the Landing page screen and run two
+passes over whatever URL you give them.
+
+The **checks** are deterministic and rule-based, so the same page always
+scores the same and progress between runs is real. They go past "is there a
+form in the markup" to the things that actually cost signups: how many
+calls to action compete for one decision, how many fields the form asks
+for, how much copy a visitor wades through before meeting a next step,
+whether the headline says anything. A check has three outcomes, not two —
+where a signal cannot be read (a JavaScript-injected form, a Kickstarter
+markup change) it records that we could not tell and is excluded from the
+score entirely, rather than punishing the creator for our blind spot.
+
+The **UX walk** is the AI reading the page as a first-time visitor and
+saying what is wrong, quoting the words it is criticising and naming the
+change to make. It never touches the score: a language model's opinion
+should not move a number tracked week to week. Without `ANTHROPIC_API_KEY`
+the checks still run and the walk is simply absent.
+
+The Kickstarter analyser is a different audit, not the same one pointed
+elsewhere — video weight, title length, reward tier count, risks, shipping
+— and it detects whether the page is pre-launch or live, so a pre-launch
+page is never marked down for lacking reward tiers it cannot have yet.
 
 **Kickstarter followers.** Paste your pre-launch page URL into Settings and
 the scheduler reads its follower count every hour — Kickstarter publishes no
