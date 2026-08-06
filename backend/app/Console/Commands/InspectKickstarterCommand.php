@@ -22,7 +22,8 @@ class InspectKickstarterCommand extends Command
 {
     protected $signature = 'kickstarter:inspect
         {url : The project or pre-launch page}
-        {--save= : Write the fetched HTML here for a closer look}';
+        {--save= : Write the fetched HTML here for a closer look}
+        {--find= : Report every occurrence of this string, with context}';
 
     protected $description = 'Show what audience numbers a Kickstarter page exposes';
 
@@ -50,10 +51,69 @@ class InspectKickstarterCommand extends Command
         }
 
         $this->reportPageKind($html);
+        $this->reportRendering($html);
         $this->reportKeys($html);
         $this->reportMentions($html);
 
+        if ($needle = $this->option('find')) {
+            $this->reportNeedle($html, $needle);
+        }
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Whether the page arrives with its content or builds it in the
+     * browser. This is the question that decides everything else: no
+     * pattern can read a number the server never sends, and hunting for
+     * better patterns against a client-rendered page is wasted work.
+     */
+    private function reportRendering(string $html): void
+    {
+        $this->newLine();
+
+        // The <title> proves the server knows the project; a number in the
+        // body proves it renders project data. Title without data means
+        // the shell is server-rendered and the content is not.
+        preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $title);
+
+        $bodyOnly = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $html);
+        $hasFigures = preg_match('/>[^<]*\b\d[\d,.]*\s*(?:followers?|backers?|%|pledged)\b/i', $bodyOnly) === 1;
+
+        $this->components->twoColumnDetail('<fg=cyan>title</>', trim($title[1] ?? '(none)'));
+        $this->components->twoColumnDetail(
+            '<fg=cyan>audience figures in the markup</>',
+            $hasFigures ? '<fg=green>yes</>' : '<fg=yellow>no — rendered in the browser</>',
+        );
+
+        if (! $hasFigures) {
+            $this->line('    <fg=gray>The number exists but arrives by JavaScript. Patterns cannot</>');
+            $this->line('    <fg=gray>reach it; find the request the page makes, or render the page.</>');
+        }
+    }
+
+    /** Arbitrary search, for chasing a value seen in the browser. */
+    private function reportNeedle(string $html, string $needle): void
+    {
+        $this->newLine();
+        $this->line(" <fg=cyan>Occurrences of \"{$needle}\"</>");
+
+        $count = preg_match_all('/'.preg_quote($needle, '/').'/i', $html, $m, PREG_OFFSET_CAPTURE);
+
+        if ($count === 0) {
+            $this->line('  <fg=yellow>not present in the fetched HTML at all</>');
+
+            return;
+        }
+
+        foreach (array_slice($m[0], 0, self::MAX_SNIPPETS) as [, $offset]) {
+            $this->line('  … '.trim(preg_replace(
+                '/\s+/', ' ',
+                substr($html, max(0, $offset - self::CONTEXT), self::CONTEXT * 2),
+            )).' …');
+        }
+
+        $this->components->twoColumnDetail('total', (string) $count);
     }
 
     /**
