@@ -90,7 +90,7 @@ class CampaignHealthScorer
 
     private function emails(Project $project): HealthFactor
     {
-        $subscribers = $project->subscribers()->count();
+        $subscribers = $project->subscribers()->active()->count();
         $needed = $this->forecasts->subscribersNeeded($project);
 
         $score = match (true) {

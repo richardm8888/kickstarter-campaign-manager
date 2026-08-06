@@ -46,6 +46,12 @@ class PublicLandingPageController extends Controller
 
         if ($subscriber->wasRecentlyCreated) {
             $metrics->record($page->project, 'landing_page', 'signups', 1);
+        } elseif ($subscriber->unsubscribed_at !== null) {
+            // Signing up again is a clear enough statement of intent to
+            // undo a previous unsubscribe, and it is the only signal we
+            // get — MailerLite tells us who left, never who returned.
+            $subscriber->update(['unsubscribed_at' => null]);
+            $metrics->record($page->project, 'landing_page', 'signups', 1);
         }
 
         return response()->json(['message' => 'You are on the list!'], 201);

@@ -22,6 +22,7 @@ class Project extends Model
         'currency',
         'funding_goal',
         'average_pledge',
+        'guaranteed_backers',
         'launch_date',
         'forecast_assumptions',
     ];
@@ -31,6 +32,7 @@ class Project extends Model
         return [
             'funding_goal' => 'integer',
             'average_pledge' => 'integer',
+            'guaranteed_backers' => 'integer',
             'launch_date' => 'date',
             'forecast_assumptions' => 'array',
         ];

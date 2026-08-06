@@ -21,10 +21,34 @@ final readonly class ForecastInput
         public array $backerRates,
         public int $averagePledge,
         public int $fundingGoal,
+        /**
+         * Friends and family who will back regardless. No rate applies to
+         * them and no ad bought them, so they are added on top rather
+         * than folded into a segment whose conversion rate they would
+         * then distort.
+         */
+        public int $guaranteedBackers = 0,
         /** How many of the inputs above came from observed data (0–1). */
         public float $dataCompleteness = 0.0,
         public ?array $adMix = null,
     ) {}
+
+    /**
+     * The same inputs under a different set of backer rates.
+     *
+     * Clones rather than rebuilding field by field. The rebuild version
+     * silently dropped every field added after it was written — a new
+     * input would be read correctly everywhere except inside the
+     * scenarios, which is the one place nobody thinks to check.
+     *
+     * @param  array<string, float>  $rates
+     */
+    public function withRates(array $rates): self
+    {
+        return new self(
+            ...[...get_object_vars($this), 'backerRates' => $rates],
+        );
+    }
 
     /** The owned email list, VIPs included. */
     public function emailSubscribers(): int

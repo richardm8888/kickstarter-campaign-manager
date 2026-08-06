@@ -14,6 +14,7 @@ export interface Project {
   currency: string
   funding_goal: number
   average_pledge: number
+  guaranteed_backers: number
   launch_date: string | null
   created_at: string
 }
@@ -255,6 +256,9 @@ export interface CampaignHealth {
 
 export type AudienceSegment = 'standard' | 'followers' | 'vips'
 
+/** Segments plus friends and family, who are backers without converting. */
+export type BackerSource = AudienceSegment | 'guaranteed'
+
 export type BackerRates = Record<AudienceSegment, number>
 
 export interface ForecastScenario {
@@ -262,7 +266,7 @@ export interface ForecastScenario {
   label: string
   rates: BackerRates
   expected_backers: number
-  backers_by_segment: Record<AudienceSegment, number>
+  backers_by_segment: Partial<Record<BackerSource, number>>
   expected_funding: number
   goal_coverage: number
   funds_the_goal: boolean

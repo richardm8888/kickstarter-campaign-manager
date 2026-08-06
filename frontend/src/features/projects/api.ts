@@ -21,6 +21,7 @@ export interface ProjectInput {
   currency?: string
   funding_goal?: number
   average_pledge?: number
+  guaranteed_backers?: number
   launch_date?: string | null
 }
 

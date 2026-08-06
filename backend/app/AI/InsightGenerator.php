@@ -144,11 +144,12 @@ class InsightGenerator
 
     private function noSignupsInLastDay(Project $project): bool
     {
-        if ($project->subscribers()->count() === 0) {
+        if ($project->subscribers()->active()->count() === 0) {
             return false; // nothing has started yet; a different insight covers that
         }
 
         return ! $project->subscribers()
+            ->active()
             ->where('created_at', '>=', now()->subDay())
             ->exists();
     }

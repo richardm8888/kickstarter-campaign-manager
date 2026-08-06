@@ -101,7 +101,10 @@ class EventSetupStatus
             ];
         }
 
-        // Signups we recorded ourselves that Meta never attributed to an ad.
+        // Signups we recorded ourselves that Meta never attributed to an
+        // ad. Deliberately counts people who have since unsubscribed: the
+        // question is whether Meta saw the signups that happened, not how
+        // many of them are still on the list.
         $ownSignups = $project->subscribers()
             ->where('created_at', '>=', now()->subDays($days))
             ->count();

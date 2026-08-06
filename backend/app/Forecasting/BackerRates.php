@@ -29,6 +29,14 @@ final class BackerRates
 
     public const VIPS = 'vips';
 
+    /**
+     * Friends and family. Deliberately not in segments(): they are backers
+     * already, so no conversion rate is ever applied to them, and adding
+     * them to the audience would let a rate be divided by a population
+     * that never converted.
+     */
+    public const GUARANTEED = 'guaranteed';
+
     public const CAUTIOUS = 'cautious';
 
     public const EXPECTED = 'expected';
@@ -52,6 +60,9 @@ final class BackerRates
         self::STANDARD => 'Email subscribers',
         self::FOLLOWERS => 'Kickstarter followers',
         self::VIPS => 'Paid VIPs',
+        // Not a segment — nobody converts into it and no rate applies —
+        // but it appears alongside them wherever backers are broken down.
+        self::GUARANTEED => 'Friends and family',
     ];
 
     /**
