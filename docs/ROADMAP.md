@@ -177,12 +177,16 @@ backer data as a CSV the creator downloads.
 Consequences:
 
 - Work *on* Kickstarter is always the creator's. We guide, we do not do.
-- Follower counts are scraped from the public page, which renders them as
-  `<p data-test-id="followers-count">19 followers</p>`. That test id is the
-  most stable handle available but is still not a contract, so
-  `KickstarterFollowers` records nothing rather than guessing when it
-  changes, and `KickstarterFollowerScrapeTest` pins the patterns to markup
-  taken verbatim from a real page.
+- Follower counts come from Kickstarter's **GraphQL endpoint**, not the
+  HTML. The page is a shell; React fetches the count after load, so no
+  amount of pattern work reaches it. `POST /graph` with the page's own
+  `PrelaunchPage` operation returns `project(slug:) { watchesCount }` —
+  Kickstarter's word for a follower is a "watch". An anonymous visit
+  supplies the session cookies and the `csrf-token` meta tag the call
+  needs; no login is involved. HTML scraping stays as a fallback.
+  This is undocumented and unversioned, so treat a shape change as
+  expected: `KickstarterFollowers` records nothing rather than guessing,
+  and manual entry covers the gap.
 - Because the markup can change, a creator can also record the count by
   hand (`POST /projects/{id}/kickstarter-followers`). Readings from both
   paths are append-only and build one growth curve.
@@ -194,13 +198,22 @@ Consequences:
   pattern needs rewriting.
 - Post-campaign truth arrives as a CSV upload (Phase 5).
 
-A caution learnt the hard way: `kickstarter:inspect` originally capped its
-output in document order, and Kickstarter's feature-flag blob at the top of
-every page (`backer_report_update_2024` and forty others) exhausted the cap
-before the scan reached the body. That hid an ordinary "19 followers" and
-led to a confident conclusion that the count was not published at all. The
-command now ranks matches before truncating. **A truncated search is not
-evidence of absence.**
+Two cautions learnt the hard way here, both worth keeping:
+
+**A truncated search is not evidence of absence.** `kickstarter:inspect`
+originally capped its output in document order, and Kickstarter's
+feature-flag blob at the top of every page (`backer_report_update_2024` and
+forty others) exhausted the cap before the scan reached the body. It hid the
+answer and produced a confident wrong conclusion. The command now ranks
+matches before truncating.
+
+**Establish server-rendered vs client-rendered before writing a single
+pattern.** Rounds of better regexes were spent against a document that never
+contained the number. `kickstarter:inspect` now reports this first, and
+`--find` chases a value seen in the browser back through the fetched HTML.
+When a value is on screen but not in the response, the answer is always the
+request the page makes — find it in DevTools → Network rather than guessing
+at markup.
 
 This is not only a limitation. It settles where we sit: everything around
 Kickstarter, nothing inside it.

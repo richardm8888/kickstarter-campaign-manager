@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Services\Analytics\MetricRecorder;
 use App\Support\BrowserHeaders;
 use App\Support\PublicUrl;
+use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -28,6 +29,8 @@ class KickstarterFollowers
      * host to be fetched by the server on a schedule.
      */
     private const ALLOWED_HOSTS = ['kickstarter.com', 'www.kickstarter.com'];
+
+    private const GRAPH_URL = 'https://www.kickstarter.com/graph';
 
     public function __construct(private readonly MetricRecorder $recorder) {}
 
@@ -70,14 +73,82 @@ class KickstarterFollowers
     {
         $this->assertKickstarterUrl($url);
 
+        // The page is a shell: React fetches the count after load, so it
+        // is never in the HTML however well we read it. What the page
+        // does is ask GraphQL, and so do we — the visit is only here to
+        // collect the session cookies and CSRF token that call needs.
+        $jar = new CookieJar;
+
         $response = Http::withHeaders(BrowserHeaders::get())
+            ->withOptions(['cookies' => $jar])
             ->timeout(15)->retry(2, 500)->get($url);
 
         if (! $response->successful()) {
             return null;
         }
 
-        return $this->extract($response->body());
+        // The HTML fallback stays for any page that does render a count,
+        // and for the day the API shape moves under us.
+        return $this->fromGraph($url, $response->body(), $jar) ?? $this->extract($response->body());
+    }
+
+    /**
+     * Ask the endpoint the pre-launch page itself uses.
+     *
+     * Kickstarter's word for a follower is a "watch", so the field is
+     * watchesCount — taken from the page's own PrelaunchPage query rather
+     * than guessed. No login is involved: an anonymous visit hands out
+     * everything this needs, and `me` simply comes back null.
+     */
+    private function fromGraph(string $url, string $html, CookieJar $jar): ?int
+    {
+        if (preg_match('/<meta name="csrf-token" content="([^"]+)"/i', $html, $matches) !== 1) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders(array_merge(BrowserHeaders::get(), [
+                'x-csrf-token' => $matches[1],
+                'content-type' => 'application/json',
+                'accept' => '*/*',
+                // A same-origin XHR, which is what this is pretending to
+                // be. The navigation headers would contradict that.
+                'Referer' => $url,
+                'Sec-Fetch-Dest' => 'empty',
+                'Sec-Fetch-Mode' => 'cors',
+                'Sec-Fetch-Site' => 'same-origin',
+            ]))
+                ->withOptions(['cookies' => $jar])
+                ->timeout(15)
+                // Batched in an array, because that is how the page sends
+                // it and matching the real client is what got us through
+                // Cloudflare in the first place.
+                ->post(self::GRAPH_URL, [[
+                    'operationName' => 'PrelaunchPage',
+                    'variables' => ['slug' => $this->slug($url)],
+                    'query' => 'query PrelaunchPage($slug: String!) '
+                        .'{ project(slug: $slug) { watchesCount state } }',
+                ]]);
+        } catch (\Throwable $e) {
+            Log::warning('Kickstarter GraphQL call failed', ['reason' => $e->getMessage()]);
+
+            return null;
+        }
+
+        $body = $response->json();
+        // A batched request answers with a list; a plain one does not.
+        $payload = array_is_list($body ?? []) ? ($body[0] ?? []) : ($body ?? []);
+        $count = $payload['data']['project']['watchesCount'] ?? null;
+
+        return is_numeric($count) ? (int) $count : null;
+    }
+
+    /** GraphQL identifies a project by its creator/project path. */
+    private function slug(string $url): string
+    {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+
+        return (string) preg_replace('#^projects/#', '', $path);
     }
 
     /**
