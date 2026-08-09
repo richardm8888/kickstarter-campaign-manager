@@ -14,6 +14,7 @@ import { ProjectLayout } from '@/components/layout/ProjectLayout'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage'
 import { AdsPage } from '@/features/ads/AdsPage'
+import { DailyPage } from '@/features/daily/DailyPage'
 import { InsightsPage } from '@/features/ai/InsightsPage'
 import { HealthPage } from '@/features/ai/HealthPage'
 import { ForecastPage } from '@/features/forecasting/ForecastPage'
@@ -79,6 +80,12 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 })
 
+const dailyRoute = createRoute({
+  getParentRoute: () => projectLayoutRoute,
+  path: '/today',
+  component: DailyPage,
+})
+
 const analyticsRoute = createRoute({
   getParentRoute: () => projectLayoutRoute,
   path: '/analytics',
@@ -135,6 +142,7 @@ const routeTree = rootRoute.addChildren([
   projectsRoute,
   projectLayoutRoute.addChildren([
     dashboardRoute,
+    dailyRoute,
     analyticsRoute,
     adsRoute,
     insightsRoute,

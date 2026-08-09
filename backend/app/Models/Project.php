@@ -68,6 +68,11 @@ class Project extends Model
         return $this->hasMany(Insight::class);
     }
 
+    public function dailyTasks(): HasMany
+    {
+        return $this->hasMany(DailyTask::class);
+    }
+
     public function landingPageAnalyses(): HasMany
     {
         return $this->hasMany(LandingPageAnalysis::class);

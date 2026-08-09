@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\GenerateDailyBriefs;
 use App\Jobs\ImportLeadsForAllProjects;
 use App\Jobs\SyncAllIntegrations;
 use App\Jobs\SyncKickstarterFollowers;
@@ -45,3 +46,12 @@ Schedule::job(new ImportLeadsForAllProjects(days: 30))
 // The lock expires well inside the hour: Laravel would otherwise hold it
 // for a day if a run died, and follower counts would silently stop.
 Schedule::job(new SyncKickstarterFollowers)->hourly()->withoutOverlapping(30);
+
+// Today's list is regenerated whenever it is read, so this is not what
+// keeps it correct — it is what gives the history something to record.
+// Early morning, so the day's list is waiting rather than being composed
+// while someone reads it.
+Schedule::job(new GenerateDailyBriefs)
+    ->name('generate-daily-briefs')
+    ->dailyAt('06:00')
+    ->withoutOverlapping(30);

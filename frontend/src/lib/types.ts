@@ -361,3 +361,39 @@ export interface ForecastReport {
     conversion_measured: boolean
   }
 }
+
+export type DailyTaskStatus = 'open' | 'done' | 'dismissed'
+
+export type DailyPriority = 'high' | 'medium' | 'low'
+
+export interface DailyTask {
+  id: number
+  for_date: string
+  signal_key: string
+  priority: DailyPriority
+  title: string
+  why: string
+  action: string
+  effort_minutes: number
+  impact: DailyPriority
+  evidence: Record<string, unknown> | null
+  score: number
+  status: DailyTaskStatus
+  completed_at: string | null
+}
+
+export interface FunnelHealthRow {
+  key: string
+  label: string
+  value: number
+  format: 'number' | 'percent' | 'money'
+  direction: 'up' | 'down' | 'flat' | 'unknown'
+  lower_is_better?: boolean
+}
+
+export interface DailyBrief {
+  date: string
+  tasks: DailyTask[]
+  funnel_health: FunnelHealthRow[]
+  nothing_to_worry_about: string[]
+}

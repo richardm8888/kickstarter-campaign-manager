@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DailyTaskController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ForecastController;
 use App\Http\Controllers\Api\HealthController;
@@ -66,6 +67,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('projects/{project}')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'show']);
+
+        Route::get('/daily', [DailyTaskController::class, 'index']);
+        Route::get('/daily/history', [DailyTaskController::class, 'history']);
+        Route::patch('/daily/{task}', [DailyTaskController::class, 'update']);
         Route::get('/analytics', [AnalyticsController::class, 'show']);
         Route::get('/health', [HealthController::class, 'show']);
 

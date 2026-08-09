@@ -66,6 +66,63 @@ communities or press gets nothing.
   later. Put the cap in writing — if it is still running at customer 200,
   the product never got easier and the calls became the business.
 
+## The daily list
+
+Built. `/projects/{id}/today`, plus the top item on the dashboard.
+
+The premise: a creator running this alongside a job does not need a
+dashboard, they need to know what to do in the next thirty minutes. So the
+list answers one question — given everything that has happened, what are
+the most valuable things to do today — and every design decision below
+protects that.
+
+**Three, hard.** Ranking is the product. A list of eleven gets skimmed,
+then ignored, then the tool stops being opened, so everything below third
+place is thrown away rather than shown smaller. A quiet day returns
+nothing at all: inventing work to fill the list is the fastest way to make
+the list worthless.
+
+**Scored, not sorted.** Every detector must state impact, confidence,
+effort and urgency, so a ten-minute job with good evidence outranks a
+two-hour one with a hunch behind it. Half an hour is the reference job;
+longer tasks are not excluded, they have to be worth more.
+
+**Trends, never days.** The shortest window is three days against the
+fortnight behind it, and a comparison without enough data reports that
+rather than a number. Almost every bad marketing decision starts with
+reacting to one bad Tuesday.
+
+**Bottleneck first.** Traffic to signups to followers to backers. The
+instinctive response to disappointing results is to buy more of the thing
+in front of them, which is exactly wrong when the stage behind is the
+limit: rising traffic with flat signups is a page problem, and more budget
+is the one action guaranteed not to help.
+
+**Tasks persist.** An untouched urgent task is still there tomorrow as the
+same task, not raised again as new thinking. A finished one is suppressed
+for a week — doing the work rarely moves the numbers the same day, so a
+detector firing again immediately is describing the old evidence. A
+dismissal is a judgement that it does not matter, respected for three
+weeks. A problem that resolves itself stops being listed without anyone
+ticking anything.
+
+**Deterministic.** Every task traces to numbers that can be shown. That is
+what makes it safe to act on one without going to check first, which is
+the entire point. The AI layer stays where it already is — phrasing in
+insights, judgement in the page audit — and is deliberately not in the
+path that decides what work exists.
+
+Detectors live in `app/Daily/Detectors`. Adding one means implementing
+`Detector` and declaring what a finding is worth; the brief handles
+ranking, persistence and carry-forward. Each also reports what it checked
+and found healthy, which is what fills "nothing to worry about" — knowing
+what to ignore is half of why a three-item list is believable.
+
+Not built, in rough order of value: SEO signals (needs Search Console,
+which nothing here reads yet), website behaviour beyond ad-reported page
+views, and learning from outcomes — the history is recorded, but nothing
+yet reads "recommended X, then followers jumped" back into scoring.
+
 ## Phase 2 — Value before they spend anything
 
 Day one is currently eight zeros and figures labelled "typical". A
