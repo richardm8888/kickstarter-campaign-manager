@@ -34,12 +34,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Every build is tagged with its commit, and only main moves
+      # `latest`. Branch builds used to move it too, which was harmless
+      # while deploys were manual and is not once they are automatic: a
+      # branch build finishing after a merge would leave `latest` pointing
+      # at unmerged code, and the next restart on the droplet would
+      # quietly run it.
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.name }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest
-            ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

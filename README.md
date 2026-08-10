@@ -93,6 +93,11 @@ ufw allow 8080/tcp
 Updating later: `git pull && docker compose up -d --build`.
 Logs: `docker compose logs -f backend`.
 
+**Or stop updating it by hand.** Once three secrets are set, merging to
+`main` builds the images, migrates and swaps the containers on its own,
+rolling back if the new build does not come up healthy — see
+[docs/DEPLOY.md](docs/DEPLOY.md).
+
 **Adding a domain later** (droplet already routes another domain through a
 host proxy): keep `HTTP_PORT=8080` and add a virtual host that proxies to
 it. nginx:
