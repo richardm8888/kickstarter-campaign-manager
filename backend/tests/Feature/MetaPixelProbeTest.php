@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Integration;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class MetaPixelProbeTest extends TestCase
@@ -85,5 +87,58 @@ class MetaPixelProbeTest extends TestCase
         $this->artisan('meta:pixel-probe')
             ->expectsOutputToContain('No pixels on this ad account')
             ->assertSuccessful();
+    }
+
+    // The same probe from the Ads page. The person who needs this answer
+    // is usually holding a phone, so the terminal route is not enough.
+
+    public function test_the_ads_page_gets_the_same_answer_the_command_prints(): void
+    {
+        Http::fake([
+            '*/adspixels*' => Http::response(['data' => [
+                ['id' => '99', 'name' => 'Totally Football', 'last_fired_time' => '2026-08-12T09:00:00+0000'],
+            ]]),
+            '*/99/stats*' => Http::response(['data' => [['value' => 412, 'event' => 'Lead']]]),
+            '*' => Http::response(['id' => '99', 'name' => 'Totally Football']),
+        ]);
+
+        $project = $this->connected();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/ads/pixel-probe")
+            ->assertOk()
+            ->assertJsonPath('pixels.0.name', 'Totally Football')
+            ->assertJsonPath('pixels.0.checks.0.label', 'Totals by event')
+            ->assertJsonPath('pixels.0.checks.0.ok', true)
+            ->assertJsonPath('pixels.0.checks.0.rows', 1);
+    }
+
+    public function test_missing_credentials_come_back_as_something_to_do(): void
+    {
+        $project = Project::factory()->create();
+        $project->integrations()->create([
+            'provider' => 'meta',
+            'status' => Integration::STATUS_CONNECTED,
+            'credentials' => ['api_key' => 'wrong shape'],
+        ]);
+
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/ads/pixel-probe")
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn (string $m) => str_contains($m, 'Reconnect it on the Integrations page'));
+    }
+
+    public function test_someone_elses_project_cannot_be_probed(): void
+    {
+        Http::fake();
+
+        $project = $this->connected();
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson("/api/projects/{$project->id}/ads/pixel-probe")->assertForbidden();
+
+        // Nothing was spent against the owner's Meta token.
+        Http::assertNothingSent();
     }
 }

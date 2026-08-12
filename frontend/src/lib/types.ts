@@ -93,6 +93,25 @@ export interface EventSetup {
   }>
 }
 
+export interface PixelProbeCheck {
+  label: string
+  ok: boolean
+  rows: number
+  /** Meta's own error text, kept verbatim. */
+  detail: string | null
+  sample: string | null
+}
+
+export interface PixelProbe {
+  checked_at: string
+  pixels: Array<{
+    id: string
+    name: string
+    last_fired_at: string | null
+    checks: PixelProbeCheck[]
+  }>
+}
+
 export type PageType = 'landing' | 'kickstarter'
 
 export interface PageCheck {
