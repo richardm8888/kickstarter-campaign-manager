@@ -53,6 +53,17 @@ class MetaIntegration extends BaseIntegration
      */
     public const FORM_VIEW_ACTIONS = ['onsite_conversion.lead_form_open', 'lead_form_open'];
 
+    /**
+     * Every effective_status Meta defines, so the ads edge returns the
+     * archived and deleted ones too rather than quietly omitting them.
+     */
+    private const ALL_STATUSES = [
+        'ACTIVE', 'PAUSED', 'DELETED', 'ARCHIVED',
+        'ADSET_PAUSED', 'CAMPAIGN_PAUSED',
+        'PENDING_REVIEW', 'DISAPPROVED', 'PREAPPROVED',
+        'PENDING_BILLING_INFO', 'IN_PROCESS', 'WITH_ISSUES',
+    ];
+
     public function provider(): string
     {
         return 'meta';
@@ -130,7 +141,7 @@ class MetaIntegration extends BaseIntegration
         }
 
 
-        $adTypes = $this->adTypes($credentials);
+        $catalogue = $this->adTypes($credentials);
 
         $rows = [];
         $accountTotals = [];
@@ -138,8 +149,16 @@ class MetaIntegration extends BaseIntegration
         foreach ($days as $row) {
             $date = $row['date_stop'] ?? now()->toDateString();
             $adId = (string) ($row['ad_id'] ?? 'unknown');
-            $adMeta = $adTypes[$adId] ?? null;
+            $adMeta = $catalogue['ads'][$adId] ?? null;
             $adType = $adMeta['type'] ?? AdType::Unknown;
+
+            // Two very different kinds of missing. An ad absent from a
+            // catalogue we read is one Meta will not list even when asked
+            // for every status — deleted, and certainly not running. An ad
+            // absent because the call failed tells us nothing, and unknown
+            // has to keep meaning running or a broken request would empty
+            // the page.
+            $status = $adMeta['status'] ?? ($catalogue['readable'] ? 'DELETED' : 'ACTIVE');
 
             $spend = (float) ($row['spend'] ?? 0);
             $impressions = (float) ($row['impressions'] ?? 0);
@@ -163,7 +182,7 @@ class MetaIntegration extends BaseIntegration
                 'objective' => $row['objective'] ?? null,
                 'optimization_goal' => $row['optimization_goal'] ?? null,
                 'ad_type' => $adType->value,
-                'ad_status' => $adMeta['status'] ?? 'ACTIVE',
+                'ad_status' => $status,
             ];
 
             foreach ([
@@ -234,7 +253,7 @@ class MetaIntegration extends BaseIntegration
      * Classifies every ad by where it sends people, which decides how its
      * conversions are read.
      *
-     * @return array<string, array{type: AdType, status: string}>
+     * @return array{ads: array<string, array{type: AdType, status: string}>, readable: bool}
      */
     private function adTypes(array $credentials): array
     {
@@ -248,6 +267,16 @@ class MetaIntegration extends BaseIntegration
                 // inside a paused campaign is not running, and telling a
                 // creator to fix an ad nobody can see wastes their morning.
                 'fields' => 'id,effective_status,creative{object_story_spec,asset_feed_spec,object_type}',
+                // This edge hides archived and deleted ads unless asked,
+                // while insights keeps reporting their spend. Left alone,
+                // the ads a creator most wants gone are exactly the ones
+                // missing from the catalogue — and so the ones that keep
+                // being treated as live.
+                'filtering' => json_encode([[
+                    'field' => 'effective_status',
+                    'operator' => 'IN',
+                    'value' => self::ALL_STATUSES,
+                ]]),
                 'limit' => 200,
             ]);
         } catch (RequestException $e) {
@@ -257,7 +286,7 @@ class MetaIntegration extends BaseIntegration
                 'error' => $e->getMessage(),
             ]);
 
-            return [];
+            return ['ads' => [], 'readable' => false];
         }
 
         $types = [];
@@ -269,13 +298,13 @@ class MetaIntegration extends BaseIntegration
 
             $types[(string) $ad['id']] = [
                 'type' => AdType::fromCreative($ad['creative'] ?? []),
-                // Anything we could not read is treated as running, so a
+                // A listed ad with no status is treated as running, so a
                 // field we failed to fetch hides nothing.
                 'status' => strtoupper((string) ($ad['effective_status'] ?? 'ACTIVE')),
             ];
         }
 
-        return $types;
+        return ['ads' => $types, 'readable' => true];
     }
 
     /**
