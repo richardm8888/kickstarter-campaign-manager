@@ -19,11 +19,13 @@ export interface Project {
   created_at: string
 }
 
-export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning'
+export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning' | 'off'
 
 export interface Ad {
   ad_id: string
   ad_name: string
+  /** Still able to be shown. Disabled ads carry no verdict. */
+  active: boolean
   adset_name: string | null
   campaign_name: string | null
   spend: number

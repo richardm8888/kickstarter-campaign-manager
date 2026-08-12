@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Megaphone } from 'lucide-react'
+import { ChevronRight, Megaphone } from 'lucide-react'
 import { getAds, getEventSetup } from './api'
 import { CampaignSetupGuide } from './CampaignSetupGuide'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
@@ -20,6 +20,53 @@ const VERDICT_STYLES: Record<AdVerdict, { badge: string; bar: string }> = {
   fix: { badge: 'bg-[color:var(--status-warning)]/15 text-foreground', bar: 'var(--status-warning)' },
   drop: { badge: 'bg-destructive/10 text-destructive', bar: 'var(--status-critical)' },
   learning: { badge: 'bg-muted text-muted-foreground', bar: 'var(--viz-axis)' },
+  off: { badge: 'bg-muted text-muted-foreground', bar: 'var(--viz-axis)' },
+}
+
+/**
+ * Ads that are off, folded away.
+ *
+ * They are kept rather than dropped because their spend is part of what
+ * the account has actually paid, and comparing a new creative against the
+ * one it replaced is the main reason to look at a paused ad at all. But
+ * they carry no verdict, so they do not belong in a list of decisions.
+ */
+function DisabledAds({ ads, hasLeadData }: { ads: Ad[]; hasLeadData: boolean }) {
+  const [open, setOpen] = useState(false)
+
+  if (ads.length === 0) return null
+
+  const spend = ads.reduce((total, ad) => total + ad.spend, 0)
+
+  return (
+    <section className="mt-4">
+      <button
+        type="button"
+        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-accent"
+      >
+        <ChevronRight
+          aria-hidden
+          className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-90')}
+        />
+        <span className="font-medium">
+          {ads.length} turned off
+        </span>
+        <span className="text-muted-foreground">
+          · {spend.toLocaleString('en-GB', { style: 'currency', currency: 'GBP' })} spent historically
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-3 flex flex-col gap-3">
+          {ads.map((ad) => (
+            <AdCard key={ad.ad_id} ad={ad} hasLeadData={hasLeadData} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -214,10 +261,14 @@ export function AdsPage() {
           )}
 
           <div className="flex flex-col gap-3">
-            {data.ads.map((ad) => (
-              <AdCard key={ad.ad_id} ad={ad} hasLeadData={data.has_lead_data} />
-            ))}
+            {data.ads
+              .filter((ad) => ad.active)
+              .map((ad) => (
+                <AdCard key={ad.ad_id} ad={ad} hasLeadData={data.has_lead_data} />
+              ))}
           </div>
+
+          <DisabledAds ads={data.ads.filter((ad) => !ad.active)} hasLeadData={data.has_lead_data} />
         </>
       )}
     </>

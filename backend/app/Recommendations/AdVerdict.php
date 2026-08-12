@@ -14,6 +14,13 @@ enum AdVerdict: string
     case Drop = 'drop';
     case Learning = 'learning';
 
+    /**
+     * Not running, so there is nothing to decide. Its own case rather than
+     * a flag alongside a verdict, because every consumer reads the verdict
+     * and a flag is something each of them has to remember to check.
+     */
+    case Off = 'off';
+
     public function label(): string
     {
         return match ($this) {
@@ -22,7 +29,14 @@ enum AdVerdict: string
             self::Fix => 'Fix',
             self::Drop => 'Drop',
             self::Learning => 'Still learning',
+            self::Off => 'Turned off',
         };
+    }
+
+    /** Whether this verdict asks the creator to do something. */
+    public function isActionable(): bool
+    {
+        return $this !== self::Off;
     }
 
     /** Sort order for the UI: act on the extremes first. */
@@ -34,6 +48,7 @@ enum AdVerdict: string
             self::Fix => 2,
             self::Keep => 3,
             self::Learning => 4,
+            self::Off => 5,
         };
     }
 }
