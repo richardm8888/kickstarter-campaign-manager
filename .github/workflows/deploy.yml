@@ -73,12 +73,32 @@ jobs:
           chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # The script is piped in rather than run from the droplet's
-          # checkout, so a deploy works even when that checkout is behind
-          # or broken — which is exactly when one is most needed.
+          # The script is sent rather than run from the droplet's checkout,
+          # so a deploy works even when that checkout is behind or broken —
+          # which is exactly when one is most needed.
+          #
+          # It is written to a file and run from there, NOT piped into
+          # `bash -s`. Piped, the script is bash's stdin, and the first
+          # command inside it that reads stdin — `docker compose run` —
+          # swallows the remaining lines. That is not hypothetical: it
+          # ate everything after the migration step, so containers were
+          # never swapped, and bash reached EOF and exited 0, which the
+          # workflow reported as a successful deploy.
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
-            "REGISTRY_TOKEN='$REGISTRY_TOKEN' REGISTRY_USER='${{ github.actor }}' DEPLOY_PATH='$DEPLOY_PATH' bash -s -- '$SHA'" \
-            < deploy/deploy.sh
+            "cat > /tmp/deploy-$SHA.sh \
+             && REGISTRY_TOKEN='$REGISTRY_TOKEN' REGISTRY_USER='${{ github.actor }}' DEPLOY_PATH='$DEPLOY_PATH' \
+                bash /tmp/deploy-$SHA.sh '$SHA'; \
+             status=\$?; rm -f /tmp/deploy-$SHA.sh; exit \$status" \
+            < deploy/deploy.sh | tee /tmp/deploy-output.txt
+
+          # An exit code alone cannot tell a finished deploy from one that
+          # stopped early and happened to end on a successful command.
+          # The script prints this only after the containers are up and
+          # healthy, so its absence is a failure however green the step.
+          if ! grep -q "DEPLOY-COMPLETE $SHA" /tmp/deploy-output.txt; then
+            echo "::error::The deploy script did not run to completion — the containers may still be running the previous build."
+            exit 1
+          fi
 
       - name: Report
         if: always()

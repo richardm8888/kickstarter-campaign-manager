@@ -169,6 +169,32 @@ built on GitHub's runners instead.
    unhealthy it says so loudly, because at that point it needs a person.
 7. **Prunes images** older than a week. A full disk fails the next deploy
    in a way that looks like something else entirely.
+8. **Prints `DEPLOY-COMPLETE <sha>`**, and the workflow fails if that line
+   is missing.
+
+### Why step 8 exists
+
+Steps 4 to 7 silently did not happen for a while, and every deploy still
+reported success.
+
+The script used to be piped into `bash -s` over SSH, which makes the
+script itself bash's standard input. `docker compose run` attaches stdin
+by default, so the migration step read the rest of the script as though
+it were keyboard input for the container. Bash then hit end-of-file and
+exited 0 — after pulling images and migrating, but before swapping any
+container. The droplet kept serving the previous build, and the only
+symptom was someone saying a change they had merged was not on the site.
+
+Three things stop it now. The script is written to a file on the droplet
+and run from there, so nothing is on stdin to eat. The migration runs
+with `-T` and `< /dev/null`, so it could not eat it anyway. And a deploy
+that stops early no longer has the option of looking successful: the
+completion line is printed last, and the workflow checks for it.
+
+**If you are ever unsure whether a deploy really landed**, read the log
+top to bottom rather than trusting the green tick. It should end with
+`==> Deployed <sha>` followed by `DEPLOY-COMPLETE <sha>`. Anything
+shorter means the containers may still be running the previous build.
 
 ## Deploying something else
 
