@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Megaphone } from 'lucide-react'
 import { getAds, getEventSetup } from './api'
 import { CampaignSetupGuide } from './CampaignSetupGuide'
-import { PixelProbe } from './PixelProbe'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -327,14 +326,6 @@ export function AdsPage() {
           <DisabledAds ads={disabled} hasLeadData={data.has_lead_data} />
         </>
       )}
-
-      {/* Below the ads, and outside the empty state: it is a question
-          about the account rather than about today's numbers, and the
-          answer is most wanted when the page looks emptier than it
-          should. */}
-      <div className="mt-6">
-        <PixelProbe projectId={projectId} />
-      </div>
     </>
   )
 }
