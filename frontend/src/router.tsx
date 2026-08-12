@@ -2,24 +2,35 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from '@tanstack/react-router'
 import { getToken } from '@/lib/api'
-import { LoginPage } from '@/features/auth/LoginPage'
-import { RegisterPage } from '@/features/auth/RegisterPage'
-import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
-import { ProjectsPage } from '@/features/projects/ProjectsPage'
-import { SettingsPage } from '@/features/projects/SettingsPage'
 import { ProjectLayout } from '@/components/layout/ProjectLayout'
-import { DashboardPage } from '@/features/dashboard/DashboardPage'
-import { AnalyticsPage } from '@/features/analytics/AnalyticsPage'
-import { AdsPage } from '@/features/ads/AdsPage'
-import { DailyPage } from '@/features/daily/DailyPage'
-import { InsightsPage } from '@/features/ai/InsightsPage'
-import { HealthPage } from '@/features/ai/HealthPage'
-import { ForecastPage } from '@/features/forecasting/ForecastPage'
-import { LandingPageBuilderPage } from '@/features/landing-page/LandingPageBuilderPage'
-import { IntegrationsPage } from '@/features/integrations/IntegrationsPage'
+
+/**
+ * Each page is its own chunk.
+ *
+ * Everything used to be one 816 KB file, so opening the login screen
+ * downloaded the charting library, the landing-page builder and every
+ * dashboard behind it. Splitting costs a second request when you first
+ * visit a page; defaultPreload below starts that request as soon as you
+ * touch the link, which is earlier than you can finish tapping it.
+ */
+const LoginPage = lazyRouteComponent(() => import('@/features/auth/LoginPage'), 'LoginPage')
+const RegisterPage = lazyRouteComponent(() => import('@/features/auth/RegisterPage'), 'RegisterPage')
+const ForgotPasswordPage = lazyRouteComponent(() => import('@/features/auth/ForgotPasswordPage'), 'ForgotPasswordPage')
+const ProjectsPage = lazyRouteComponent(() => import('@/features/projects/ProjectsPage'), 'ProjectsPage')
+const SettingsPage = lazyRouteComponent(() => import('@/features/projects/SettingsPage'), 'SettingsPage')
+const DashboardPage = lazyRouteComponent(() => import('@/features/dashboard/DashboardPage'), 'DashboardPage')
+const AnalyticsPage = lazyRouteComponent(() => import('@/features/analytics/AnalyticsPage'), 'AnalyticsPage')
+const AdsPage = lazyRouteComponent(() => import('@/features/ads/AdsPage'), 'AdsPage')
+const DailyPage = lazyRouteComponent(() => import('@/features/daily/DailyPage'), 'DailyPage')
+const InsightsPage = lazyRouteComponent(() => import('@/features/ai/InsightsPage'), 'InsightsPage')
+const HealthPage = lazyRouteComponent(() => import('@/features/ai/HealthPage'), 'HealthPage')
+const ForecastPage = lazyRouteComponent(() => import('@/features/forecasting/ForecastPage'), 'ForecastPage')
+const LandingPageBuilderPage = lazyRouteComponent(() => import('@/features/landing-page/LandingPageBuilderPage'), 'LandingPageBuilderPage')
+const IntegrationsPage = lazyRouteComponent(() => import('@/features/integrations/IntegrationsPage'), 'IntegrationsPage')
 
 const rootRoute = createRootRoute()
 
@@ -154,7 +165,11 @@ const routeTree = rootRoute.addChildren([
   ]),
 ])
 
-export const router = createRouter({ routeTree })
+export const router = createRouter({
+  routeTree,
+  // Fetch a page's chunk on hover or touch-start, not on click.
+  defaultPreload: 'intent',
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

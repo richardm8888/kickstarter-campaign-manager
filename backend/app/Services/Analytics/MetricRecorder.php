@@ -12,6 +12,8 @@ use Illuminate\Support\Carbon;
  */
 class MetricRecorder
 {
+    public function __construct(private readonly SnapshotCache $cache) {}
+
     public function record(
         Project $project,
         string $source,
@@ -20,12 +22,19 @@ class MetricRecorder
         Carbon|string|null $recordedAt = null,
         ?array $dimensions = null,
     ): MetricSnapshot {
-        return $project->metricSnapshots()->create([
+        $snapshot = $project->metricSnapshots()->create([
             'source' => $source,
             'metric' => $metric,
             'value' => $value,
             'recorded_at' => $recordedAt ? Carbon::parse($recordedAt) : now(),
             'dimensions' => $dimensions,
         ]);
+
+        // Reads are memoised for the length of a request, and a sync
+        // writes and then reads in that same request. Without this it
+        // would be told what the numbers were before it ran.
+        $this->cache->flush();
+
+        return $snapshot;
     }
 }

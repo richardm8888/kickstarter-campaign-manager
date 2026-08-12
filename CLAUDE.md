@@ -2,6 +2,14 @@
 
 ## Branching
 
+**One open pull request at a time.** Never leave two branches waiting for
+review. If a second piece of work is ready before the first has merged,
+fold it into the open PR rather than opening another — the reviewer here
+is one person on a phone, and a queue of PRs is a queue of things they
+have to hold in their head at once.
+
+Once it merges, start the next branch from `main`. Not before.
+
 **One branch per change, and never reuse a branch whose PR has merged.**
 
 A merged pull request is closed for good — it cannot pick up new commits.

@@ -11,6 +11,7 @@ use App\Services\Analytics\SegmentTotals;
 use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
+use App\Services\Analytics\SnapshotCache;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,7 +22,7 @@ class ForecastEngineTest extends TestCase
 {
     private function engine(): ForecastEngine
     {
-        $series = new MetricSeries(new MetricCatalog);
+        $series = new MetricSeries(new MetricCatalog, new SnapshotCache);
 
         return new ForecastEngine($series, new AudienceSize($series), new AdTotals(new SegmentTotals));
     }
