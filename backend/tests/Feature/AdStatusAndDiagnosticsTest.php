@@ -42,7 +42,7 @@ class AdStatusAndDiagnosticsTest extends TestCase
 
         // Terrible numbers, which would be a loud "drop" were it running.
         $this->ad($project, ['ad_id' => 'paused', 'ad_type' => 'landing_page', 'ad_status' => 'PAUSED'], [
-            'ad_spend' => 8000, 'ad_clicks' => 400, 'ad_impressions' => 40000, 'ad_leads' => 0,
+            'ad_spend' => 80.0, 'ad_clicks' => 400, 'ad_impressions' => 40000, 'ad_leads' => 0,
         ]);
 
         $ads = collect($this->getJson("/api/projects/{$project->id}/ads")->assertOk()->json('ads'))
@@ -61,7 +61,7 @@ class AdStatusAndDiagnosticsTest extends TestCase
         Sanctum::actingAs($project->user);
 
         $this->ad($project, ['ad_id' => 'a', 'ad_type' => 'landing_page', 'ad_status' => 'CAMPAIGN_PAUSED'], [
-            'ad_spend' => 5000, 'ad_clicks' => 200, 'ad_impressions' => 20000, 'ad_leads' => 0,
+            'ad_spend' => 50.0, 'ad_clicks' => 200, 'ad_impressions' => 20000, 'ad_leads' => 0,
         ]);
 
         $ads = collect($this->getJson("/api/projects/{$project->id}/ads")->json('ads'))->keyBy('ad_id');
@@ -77,7 +77,7 @@ class AdStatusAndDiagnosticsTest extends TestCase
         Sanctum::actingAs($project->user);
 
         $this->ad($project, ['ad_id' => 'legacy', 'ad_type' => 'landing_page'], [
-            'ad_spend' => 5000, 'ad_clicks' => 200, 'ad_impressions' => 20000, 'ad_leads' => 0,
+            'ad_spend' => 50.0, 'ad_clicks' => 200, 'ad_impressions' => 20000, 'ad_leads' => 0,
         ]);
 
         $ads = collect($this->getJson("/api/projects/{$project->id}/ads")->json('ads'))->keyBy('ad_id');
@@ -164,13 +164,81 @@ class AdStatusAndDiagnosticsTest extends TestCase
         $this->assertNotEmpty($titles->filter(fn ($t) => str_contains($t, 'never load')));
     }
 
+    public function test_disabled_ads_are_not_counted_in_the_traffic_objective_warning(): void
+    {
+        // The warning tells you to go and rebuild a campaign. There is
+        // nothing to rebuild on an ad that stopped running weeks ago, and
+        // counting it made two live ads read as four.
+        $project = $this->connectedProject();
+        Sanctum::actingAs($project->user);
+
+        foreach (['old_a', 'old_b'] as $id) {
+            $this->ad($project, [
+                'ad_id' => $id, 'ad_type' => 'landing_page', 'ad_status' => 'PAUSED',
+                'optimization_goal' => 'LANDING_PAGE_VIEWS',
+            ], ['ad_spend' => 8.0, 'ad_clicks' => 40, 'ad_impressions' => 4000]);
+        }
+
+        $this->ad($project, [
+            'ad_id' => 'live', 'ad_type' => 'landing_page', 'ad_status' => 'ACTIVE',
+            'optimization_goal' => 'LANDING_PAGE_VIEWS',
+        ], ['ad_spend' => 5.0, 'ad_clicks' => 30, 'ad_impressions' => 3000]);
+
+        $report = $this->getJson("/api/projects/{$project->id}/ads")->assertOk()->json();
+
+        $this->assertSame(1, $report['traffic_objective_count']);
+        $this->assertEquals(5.0, $report['traffic_objective_spend']);
+    }
+
+    public function test_wasted_spend_is_raised_at_realistic_pre_launch_budgets(): void
+    {
+        // Spend arrives from Meta in currency units. A threshold written
+        // as 20_00 meant £2,000, which no pre-launch creator reaches, so
+        // this signal silently never fired — indistinguishable from a
+        // campaign with nothing wrong.
+        $project = $this->connectedProject();
+        Sanctum::actingAs($project->user);
+
+        // One ad producing leads, so the account has a cost per lead to
+        // judge against — with none at all, nothing can be called wasteful.
+        $this->ad($project, ['ad_id' => 'good', 'ad_type' => 'landing_page', 'ad_status' => 'ACTIVE'], [
+            'ad_spend' => 10.0, 'ad_clicks' => 60, 'ad_impressions' => 6000, 'ad_leads' => 12,
+        ]);
+
+        // And one burning £45 at £22.50 a lead against a £0.90 ceiling.
+        $this->ad($project, ['ad_id' => 'bad', 'ad_type' => 'landing_page', 'ad_status' => 'ACTIVE'], [
+            'ad_spend' => 45.0, 'ad_clicks' => 300, 'ad_impressions' => 30000, 'ad_leads' => 2,
+        ]);
+
+        $tasks = collect($this->getJson("/api/projects/{$project->id}/daily")->json('tasks'));
+
+        $wasted = $tasks->firstWhere('signal_key', 'ads_wasted_spend');
+
+        $this->assertNotNull($wasted, 'a £45 ad going nowhere is worth a morning');
+        $this->assertStringContainsString('£45.00', $wasted['why']);
+    }
+
+    public function test_the_report_says_when_meta_was_last_read(): void
+    {
+        // Without it there is no telling a stale figure from a wrong one.
+        $project = $this->connectedProject();
+        Sanctum::actingAs($project->user);
+
+        $project->integrations()->where('provider', 'meta')
+            ->update(['last_synced_at' => now()->subMinutes(20)]);
+
+        $this->assertNotNull(
+            $this->getJson("/api/projects/{$project->id}/ads")->json('last_synced_at'),
+        );
+    }
+
     public function test_the_daily_list_does_not_raise_work_for_disabled_ads(): void
     {
         $project = $this->connectedProject();
         Sanctum::actingAs($project->user);
 
         $this->ad($project, ['ad_id' => 'paused', 'ad_type' => 'landing_page', 'ad_status' => 'PAUSED'], [
-            'ad_spend' => 20000, 'ad_clicks' => 900, 'ad_impressions' => 90000, 'ad_leads' => 0,
+            'ad_spend' => 200.0, 'ad_clicks' => 900, 'ad_impressions' => 90000, 'ad_leads' => 0,
         ]);
 
         $keys = collect($this->getJson("/api/projects/{$project->id}/daily")->json('tasks'))

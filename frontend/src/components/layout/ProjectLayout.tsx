@@ -96,7 +96,9 @@ export function ProjectLayout() {
 
 export function PageHeader({ title, subtitle, children }: {
   title: string
-  subtitle?: string
+  // Not just a string: pages that show how fresh their data is need to
+  // mark the stale case, and that belongs beside the title.
+  subtitle?: React.ReactNode
   children?: React.ReactNode
 }) {
   return (

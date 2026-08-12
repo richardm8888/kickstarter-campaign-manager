@@ -18,6 +18,11 @@ fbq('init', 'YOUR_PIXEL_ID');
 fbq('track', 'PageView');
 </script>`
 
+const VIEW_CONTENT_SNIPPET = `<!-- Landing page only, after the pixel snippet above -->
+<script>
+  fbq('track', 'ViewContent');
+</script>`
+
 const LEAD_SNIPPET = `<!-- Fire after the email form is submitted successfully -->
 <script>
   document.querySelector('#signup-form')
@@ -219,7 +224,18 @@ export function CampaignSetupGuide({ setup }: { setup: EventSetup }) {
               </li>
 
               <li className="flex flex-col gap-2">
-                <p className="text-sm font-medium">2. Fire Lead on your own signup form</p>
+                <p className="text-sm font-medium">2. Fire ViewContent on your landing page</p>
+                <p className="text-sm text-muted-foreground">
+                  This is what tells us an ad click became a real visit rather than a misclick, and it is
+                  what the tracking check above measures. Put it on the landing page only — on every page of
+                  a larger site it counts visits that were never the ad's doing, and the comparison stops
+                  meaning anything.
+                </p>
+                <CopyBlock code={VIEW_CONTENT_SNIPPET} label="ViewContent snippet" />
+              </li>
+
+              <li className="flex flex-col gap-2">
+                <p className="text-sm font-medium">3. Fire Lead on your own signup form</p>
                 <p className="text-sm text-muted-foreground">
                   Only if you also collect emails on your own page. Fire it after a successful submission —
                   fire it on page load and every visitor counts as a signup, making your cost per signup look
@@ -229,11 +245,14 @@ export function CampaignSetupGuide({ setup }: { setup: EventSetup }) {
               </li>
 
               <li className="flex flex-col gap-2">
-                <p className="text-sm font-medium">3. Verify</p>
+                <p className="text-sm font-medium">4. Verify</p>
                 <p className="text-sm text-muted-foreground">
-                  Use the <strong>Meta Pixel Helper</strong> extension on the live page, then submit a test
-                  signup. Events reach Events Manager within minutes and appear above after the next hourly
-                  sync.
+                  Install the <strong>Meta Pixel Helper</strong> extension and load the live page, then
+                  submit a test signup. Calling <code>fbq</code> from the console logs nothing even when it
+                  works, so check DevTools → Network for a request to <code>facebook.com/tr/</code> instead —
+                  and if <code>typeof fbq</code> is <code>undefined</code>, an ad blocker is stopping the
+                  pixel from loading at all. Events reach Events Manager within minutes and appear above
+                  after the next hourly sync.
                 </p>
               </li>
             </ol>
