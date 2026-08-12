@@ -69,6 +69,40 @@ function DisabledAds({ ads, hasLeadData }: { ads: Ad[]; hasLeadData: boolean }) 
   )
 }
 
+/**
+ * How old the numbers are.
+ *
+ * Everything on this page is a snapshot of a Meta sync, and without
+ * saying when, a figure that is merely stale is indistinguishable from
+ * one that is wrong — which sends people looking for a bug instead of
+ * waiting an hour.
+ */
+function SyncedAt({ at }: { at: string | null }) {
+  if (at === null) {
+    return <>What to keep, scale and switch off</>
+  }
+
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(at).getTime()) / 60000))
+
+  const ago =
+    minutes < 2
+      ? 'just now'
+      : minutes < 60
+        ? `${minutes} minutes ago`
+        : minutes < 120
+          ? 'an hour ago'
+          : `${Math.round(minutes / 60)} hours ago`
+
+  return (
+    <>
+      What to keep, scale and switch off ·{' '}
+      <span className={cn(minutes > 180 && 'text-[color:var(--status-warning)]')}>
+        synced {ago}
+      </span>
+    </>
+  )
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -156,7 +190,7 @@ export function AdsPage() {
 
   return (
     <>
-      <PageHeader title="Ads" subtitle="What to keep, scale and switch off">
+      <PageHeader title="Ads" subtitle={<SyncedAt at={data?.last_synced_at ?? null} />}>
         <div className="flex gap-1" role="group" aria-label="Date range">
           {RANGES.map((range) => (
             <button

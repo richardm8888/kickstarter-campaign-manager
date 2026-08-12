@@ -24,8 +24,16 @@ use App\Services\Analytics\MetricSeries;
  */
 class AdEfficiencyDetector implements Detector
 {
-    /** Below this, a verdict is drawn from too little spend to trust. */
-    private const MINIMUM_SPEND = 20_00;
+    /**
+     * Below this, a verdict is drawn from too little spend to trust.
+     *
+     * Currency units, not minor units: Meta reports spend as "12.34" and
+     * nothing converts it. Written as 20_00 this read as a £2,000 floor,
+     * which no pre-launch creator reaches, so these signals never fired —
+     * and a detector that silently never fires looks exactly like a
+     * campaign with nothing wrong.
+     */
+    private const MINIMUM_SPEND = 20.0;
 
     /** A rise in cost this large over a week is fatigue, not noise. */
     private const FATIGUE_CPC_RISE = 20.0;
@@ -200,15 +208,16 @@ class AdEfficiencyDetector implements Detector
         if ($cpl !== null && $affordable !== null && $cpl <= $affordable) {
             return [sprintf(
                 'Paid acquisition is inside what a signup is worth to you (%s against %s).',
-                $this->money((int) round($cpl * 100), $project),
-                $this->money((int) round($affordable * 100), $project),
+                $this->money($cpl, $project),
+                $this->money($affordable, $project),
             )];
         }
 
         return ['No ad currently needs a decision.'];
     }
 
-    private function money(int $minorUnits, Project $project): string
+    /** @param  float  $amount  currency units, as Meta reports spend */
+    private function money(float $amount, Project $project): string
     {
         $symbol = match (strtoupper($project->currency)) {
             'USD' => '$',
@@ -216,6 +225,6 @@ class AdEfficiencyDetector implements Detector
             default => '£',
         };
 
-        return $symbol.number_format($minorUnits / 100, 2);
+        return $symbol.number_format($amount, 2);
     }
 }

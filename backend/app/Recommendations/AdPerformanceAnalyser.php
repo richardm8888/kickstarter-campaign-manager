@@ -89,7 +89,14 @@ class AdPerformanceAnalyser
             return $order !== 0 ? $order : $b['spend'] <=> $a['spend'];
         });
 
-        $trafficAds = array_filter($ads, fn (array $a) => $a['objective'] === AdObjective::Traffic->value);
+        // Active only. This one asks the creator to go and rebuild a
+        // campaign, and there is nothing to rebuild on an ad that stopped
+        // running weeks ago — the objective it was set to is now a fact
+        // about the past rather than a mistake still costing money.
+        $trafficAds = array_filter(
+            $ads,
+            fn (array $a) => $a['active'] && $a['objective'] === AdObjective::Traffic->value,
+        );
 
         $byType = [];
 
@@ -118,6 +125,13 @@ class AdPerformanceAnalyser
 
         return [
             'days' => $days,
+            // When Meta was last read. Everything on this page is a
+            // snapshot, and without a timestamp there is no way to tell a
+            // stale figure from a wrong one — the difference between
+            // waiting an hour and going to look for a bug.
+            'last_synced_at' => $project->integrations()
+                ->where('provider', 'meta')
+                ->value('last_synced_at'),
             'has_lead_data' => $hasLeadData,
             'by_type' => $byType,
             'traffic_objective_count' => count($trafficAds),

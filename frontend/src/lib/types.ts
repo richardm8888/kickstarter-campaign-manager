@@ -64,6 +64,8 @@ export interface AdTypeSummary {
 
 export interface AdReport {
   days: number
+  /** When Meta was last read. Null until the first sync. */
+  last_synced_at: string | null
   has_lead_data: boolean
   by_type: AdTypeSummary[]
   traffic_objective_count: number
