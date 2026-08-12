@@ -109,7 +109,12 @@ docker compose pull --quiet
 # app starts. The other way round leaves a window where new code queries
 # columns that do not exist yet, which is a 500 to whoever is browsing.
 say "Running migrations"
-if ! docker compose run --rm --no-deps backend php artisan migrate --force; then
+# -T and </dev/null: `docker compose run` attaches stdin by default. When
+# this script arrives on stdin, that means it reads the script itself —
+# everything below this line disappears and bash exits 0 having deployed
+# nothing. The workflow no longer feeds the script in on stdin, and this
+# is the second lock on the same door.
+if ! docker compose run --rm --no-deps -T backend php artisan migrate --force < /dev/null; then
     say "Migration failed — nothing has been swapped, the old build is still serving"
     set_tag "$PREVIOUS"
     exit 1
@@ -127,3 +132,9 @@ say "Cleaning up old images"
 docker image prune -f --filter "until=168h" > /dev/null || true
 
 say "Deployed $SHA"
+
+# Proof that the script ran to the end. A deploy that stops early — for
+# any reason, not just the stdin bug — has to fail loudly rather than
+# report success on the strength of an exit code from wherever it
+# stopped. The workflow greps for this exact line.
+echo "DEPLOY-COMPLETE $SHA"
