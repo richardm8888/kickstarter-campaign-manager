@@ -232,6 +232,20 @@ export interface AnalyticsMetric {
   change: number | null
 }
 
+export interface ConversionRow {
+  key: string
+  label: string
+  sessions: number
+  leads: number
+  /** Null below the sample threshold: "cannot say" is not "nobody". */
+  conversion: number | null
+}
+
+export interface ConversionBreakdown {
+  by_source: ConversionRow[]
+  by_region: ConversionRow[]
+}
+
 export interface Insight {
   id: number
   kind: 'insight' | 'recommendation'
