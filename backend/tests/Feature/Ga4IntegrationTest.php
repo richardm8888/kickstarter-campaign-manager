@@ -59,14 +59,15 @@ class Ga4IntegrationTest extends TestCase
     {
         Http::fake([
             'oauth2.googleapis.com/*' => Http::response(['access_token' => 'ya29.fresh-token']),
-            'analyticsdata.googleapis.com/*' => Http::response([
-                'rows' => [
-                    [
-                        'dimensionValues' => [['value' => '20260801']],
-                        'metricValues' => [['value' => '412'], ['value' => '388'], ['value' => '901']],
-                    ],
-                ],
-            ]),
+            'analyticsdata.googleapis.com/*' => Http::response(['reports' => [
+                ['rows' => [[
+                    'dimensionValues' => [['value' => '20260801']],
+                    'metricValues' => [['value' => '412'], ['value' => '388'], ['value' => '901']],
+                ]]],
+                ['rows' => []],
+                ['rows' => []],
+                ['rows' => []],
+            ]]),
         ]);
 
         $project = Project::factory()->create();

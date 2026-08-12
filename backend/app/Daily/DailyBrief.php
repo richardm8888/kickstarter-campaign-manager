@@ -160,14 +160,15 @@ class DailyBrief
             ],
         ];
 
-        // Only shown once both sides exist: a percentage of nothing reads
-        // as a real figure and is not one.
+        // A ratio, labelled as one. Nothing ties a follower to a
+        // subscriber — Kickstarter hands over a total and no identities —
+        // so "Email → follower" read as a measured conversion it is not.
         if ($subscribers > 0 && $project->kickstarter_url !== null) {
             $rows[] = [
-                'key' => 'email_to_follower',
-                'label' => 'Email → follower',
+                'key' => 'followers_per_hundred',
+                'label' => 'Followers per 100 subscribers',
                 'value' => round($followers / $subscribers * 100, 1),
-                'format' => 'percent',
+                'format' => 'number',
                 'direction' => 'flat',
             ];
         }

@@ -93,6 +93,25 @@ export interface EventSetup {
   }>
 }
 
+export interface PixelProbeCheck {
+  label: string
+  ok: boolean
+  rows: number
+  /** Meta's own error text, kept verbatim. */
+  detail: string | null
+  sample: string | null
+}
+
+export interface PixelProbe {
+  checked_at: string
+  pixels: Array<{
+    id: string
+    name: string
+    last_fired_at: string | null
+    checks: PixelProbeCheck[]
+  }>
+}
+
 export type PageType = 'landing' | 'kickstarter'
 
 export interface PageCheck {
@@ -230,6 +249,22 @@ export interface AnalyticsMetric {
   total: number
   latest: number | null
   change: number | null
+}
+
+export interface ConversionRow {
+  key: string
+  label: string
+  sessions: number
+  leads: number
+  /** Null below the sample threshold: "cannot say" is not "nobody". */
+  conversion: number | null
+}
+
+export interface ConversionBreakdown {
+  by_source: ConversionRow[]
+  by_region: ConversionRow[]
+  /** Visits to the Kickstarter page itself. Follows are not measurable. */
+  kickstarter_arrivals: ConversionRow[]
 }
 
 export interface Insight {

@@ -9,6 +9,7 @@ use App\Models\DailyTask;
 use App\Models\Project;
 use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricSeries;
+use App\Services\Analytics\SegmentTotals;
 
 /**
  * Finds the stage that is holding everything else back.
@@ -26,12 +27,15 @@ use App\Services\Analytics\MetricSeries;
 class FunnelBottleneckDetector implements Detector
 {
     /**
-     * Below this, an email list is barely converting into the audience
-     * that actually backs. Followers back at around 20% against 2% for a
-     * plain subscriber, so this conversion is worth more than any other
-     * in the funnel.
+     * Below this, a list is producing few followers for its size.
+     *
+     * Deliberately a ratio and not a conversion rate. Nothing links the
+     * two populations: Kickstarter hands over a follower total and no
+     * identities, so we can never learn whether a follower was ever on
+     * the list. What we can say is that a large list sitting beside very
+     * few unbought followers is worth a nudge, and that is all this claims.
      */
-    private const WEAK_EMAIL_TO_FOLLOWER = 0.25;
+    private const WEAK_FOLLOWERS_PER_SUBSCRIBER = 0.25;
 
     /** A landing page that converts below this is losing bought traffic. */
     private const WEAK_VISITOR_TO_SIGNUP = 0.15;
@@ -39,9 +43,13 @@ class FunnelBottleneckDetector implements Detector
     /** Too few people through a stage for its rate to mean anything. */
     private const MINIMUM_SAMPLE = 25;
 
+    /** GA4's word for traffic that came from an email tool. */
+    private const EMAIL_SOURCES = ['mailerlite', 'email', 'newsletter', 'ml'];
+
     public function __construct(
         private readonly MetricSeries $series,
         private readonly AudienceSize $audience,
+        private readonly SegmentTotals $segments,
     ) {}
 
     /** @return list<Signal> */
@@ -127,15 +135,19 @@ class FunnelBottleneckDetector implements Detector
         }
 
         $subscribers = $this->audience->total($project);
-        $followers = $this->audience->followers($project);
+
+        // Follows the ads bought are not the list's doing, and counting
+        // them here would let paid follows silence advice about an email
+        // list that is doing nothing.
+        $followers = $this->audience->organicFollowers($project);
 
         if ($subscribers < self::MINIMUM_SAMPLE) {
             return null;
         }
 
-        $rate = $followers / $subscribers;
+        $ratio = $followers / $subscribers;
 
-        if ($rate >= self::WEAK_EMAIL_TO_FOLLOWER) {
+        if ($ratio >= self::WEAK_FOLLOWERS_PER_SUBSCRIBER) {
             return null;
         }
 
@@ -144,16 +156,22 @@ class FunnelBottleneckDetector implements Detector
         $listGrowth = Trend::of($this->series, $project, 'email_subscribers');
         $stillGrowing = $listGrowth->rising(5);
 
+        // Where it can be measured, say which half is broken. Nobody
+        // arriving means the emails are not asking; plenty arriving and
+        // few following means the page is not persuading, and those want
+        // completely different mornings.
+        $arrivals = $this->emailArrivals($project);
+
         return new Signal(
             key: 'bottleneck_email_to_follower',
             title: 'Ask your email list to follow the Kickstarter page',
             why: sprintf(
-                '%s subscribers have produced %s followers (%s%%). A follower backs at roughly ten times the rate of a plain subscriber, so this gap is costing more than any other in the funnel.%s',
-                $subscribers,
-                $followers,
-                round($rate * 100, 1),
+                'You have %s subscribers and %s followers your ads did not buy — %s per hundred. A follower backs at roughly ten times the rate of a plain subscriber, so a list this size producing so few is the biggest gap in the funnel.%s',
+                number_format($subscribers),
+                number_format($followers),
+                round($ratio * 100),
                 $stillGrowing ? ' The list is still growing, so the gap is widening.' : '',
-            ),
+            ).$this->arrivalNote($arrivals),
             action: 'Send one short email asking them to follow the pre-launch page, saying plainly that followers get told the moment it opens and that launch-day backers decide whether Kickstarter shows the project to anyone else.',
             effortMinutes: 20,
             impact: DailyTask::HIGH,
@@ -161,11 +179,61 @@ class FunnelBottleneckDetector implements Detector
             urgency: $stillGrowing ? 0.85 : 0.65,
             evidence: [
                 'subscribers' => $subscribers,
-                'followers' => $followers,
-                'conversion' => round($rate * 100, 1),
+                'organic_followers' => $followers,
+                'followers_per_hundred' => round($ratio * 100, 1),
                 'list_growing' => $stillGrowing,
+                'email_arrivals_at_kickstarter' => $arrivals,
             ],
         );
+    }
+
+    /**
+     * Sessions on the Kickstarter page that came from an email tool, over
+     * the last month. Null when the project's Google Analytics ID is not
+     * set in Kickstarter's project settings, which is the only way this
+     * can be seen at all.
+     */
+    private function emailArrivals(Project $project): ?int
+    {
+        $rows = $this->segments->get(
+            $project,
+            ['ks_page_sessions_by_source'],
+            'source',
+            30,
+            'ga4',
+        );
+
+        if ($rows === []) {
+            return null;
+        }
+
+        $fromEmail = 0.0;
+
+        foreach ($rows as $row) {
+            $source = strtolower((string) $row['dimensions']['source']);
+
+            foreach (self::EMAIL_SOURCES as $needle) {
+                if (str_contains($source, $needle)) {
+                    $fromEmail += $row['totals']['ks_page_sessions_by_source'];
+
+                    break;
+                }
+            }
+        }
+
+        return (int) $fromEmail;
+    }
+
+    private function arrivalNote(?int $arrivals): string
+    {
+        return match (true) {
+            $arrivals === null => '',
+            $arrivals === 0 => ' Nothing has reached the Kickstarter page from your emails in the last month, so the asking is what is missing rather than the page.',
+            default => sprintf(
+                ' %s people reached the page from your emails in the last month, so the link is being clicked — following is where they stop.',
+                number_format($arrivals),
+            ),
+        };
     }
 
     /** @return list<string> */
@@ -174,12 +242,17 @@ class FunnelBottleneckDetector implements Detector
         $notes = [];
 
         $subscribers = $this->audience->total($project);
-        $followers = $this->audience->followers($project);
+        $followers = $this->audience->organicFollowers($project);
 
-        if ($subscribers >= self::MINIMUM_SAMPLE && $followers / $subscribers >= self::WEAK_EMAIL_TO_FOLLOWER) {
+        if ($subscribers >= self::MINIMUM_SAMPLE
+            && $followers / $subscribers >= self::WEAK_FOLLOWERS_PER_SUBSCRIBER) {
+            // Stated as a ratio, because that is what it is. Nothing ties
+            // a follower to a subscriber, so calling it a conversion rate
+            // would claim a measurement nobody has.
             $notes[] = sprintf(
-                'Email to Kickstarter follower is converting at %s%% — above what most pre-launch campaigns manage.',
-                round($followers / $subscribers * 100, 1),
+                '%s followers against %s subscribers — a healthy ratio for a pre-launch list.',
+                number_format($followers),
+                number_format($subscribers),
             );
         }
 

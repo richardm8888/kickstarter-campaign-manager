@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Megaphone } from 'lucide-react'
 import { getAds, getEventSetup } from './api'
 import { CampaignSetupGuide } from './CampaignSetupGuide'
+import { PixelProbe } from './PixelProbe'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,6 +22,36 @@ const VERDICT_STYLES: Record<AdVerdict, { badge: string; bar: string }> = {
   drop: { badge: 'bg-destructive/10 text-destructive', bar: 'var(--status-critical)' },
   learning: { badge: 'bg-muted text-muted-foreground', bar: 'var(--viz-axis)' },
   off: { badge: 'bg-muted text-muted-foreground', bar: 'var(--viz-axis)' },
+}
+
+/**
+ * Ads told to buy page views rather than signups.
+ *
+ * Built from the live ads actually rendered, never from a count computed
+ * elsewhere. This warning asks the creator to go and rebuild a campaign,
+ * and it spent a week naming ads that had been switched off for months —
+ * derived from the list on screen, it cannot describe anything that is
+ * not on screen.
+ */
+function TrafficObjectiveWarning({ ads }: { ads: Ad[] }) {
+  const traffic = ads.filter((ad) => ad.objective === 'traffic')
+
+  if (traffic.length === 0) return null
+
+  const spend = traffic.reduce((total, ad) => total + ad.spend, 0)
+
+  return (
+    <div className="mb-4 rounded-lg border-l-2 border-l-[color:var(--status-warning)] bg-muted/40 p-4">
+      <p className="text-sm font-medium">
+        {money(Math.round(spend * 100))} is going to ads optimised for page views, not signups
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {traffic.length === 1 ? 'One ad is' : `${traffic.length} ads are`} set to buy landing page
+        views. Meta will find the cheapest clicks it can, whether or not those people ever join your
+        list. Rebuild them as a Leads or Sales campaign so Meta optimises for signups.
+      </p>
+    </div>
+  )
 }
 
 /**
@@ -188,6 +219,12 @@ export function AdsPage() {
   const { data, isPending } = useQuery(getAds(projectId, days))
   const { data: setup } = useQuery(getEventSetup(projectId))
 
+  // Split once, so the warning and the list can never describe different
+  // sets of ads. Deriving the warning separately is what let it name ads
+  // that had been switched off for months.
+  const live = data?.ads.filter((ad) => ad.active) ?? []
+  const disabled = data?.ads.filter((ad) => !ad.active) ?? []
+
   return (
     <>
       <PageHeader title="Ads" subtitle={<SyncedAt at={data?.last_synced_at ?? null} />}>
@@ -279,32 +316,25 @@ export function AdsPage() {
             </div>
           )}
 
-          {data.traffic_objective_count > 0 && (
-            <div className="mb-4 rounded-lg border-l-2 border-l-[color:var(--status-warning)] bg-muted/40 p-4">
-              <p className="text-sm font-medium">
-                {money(Math.round(data.traffic_objective_spend * 100))} is going to ads optimised for page
-                views, not signups
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {data.traffic_objective_count === 1 ? 'One ad is' : `${data.traffic_objective_count} ads are`}{' '}
-                set to buy landing page views. Meta will find the cheapest clicks it can, whether or not those
-                people ever join your list. Rebuild them as a Leads or Sales campaign so Meta optimises for
-                signups.
-              </p>
-            </div>
-          )}
+          <TrafficObjectiveWarning ads={live} />
 
           <div className="flex flex-col gap-3">
-            {data.ads
-              .filter((ad) => ad.active)
-              .map((ad) => (
-                <AdCard key={ad.ad_id} ad={ad} hasLeadData={data.has_lead_data} />
-              ))}
+            {live.map((ad) => (
+              <AdCard key={ad.ad_id} ad={ad} hasLeadData={data.has_lead_data} />
+            ))}
           </div>
 
-          <DisabledAds ads={data.ads.filter((ad) => !ad.active)} hasLeadData={data.has_lead_data} />
+          <DisabledAds ads={disabled} hasLeadData={data.has_lead_data} />
         </>
       )}
+
+      {/* Below the ads, and outside the empty state: it is a question
+          about the account rather than about today's numbers, and the
+          answer is most wanted when the page looks emptier than it
+          should. */}
+      <div className="mt-6">
+        <PixelProbe projectId={projectId} />
+      </div>
     </>
   )
 }
