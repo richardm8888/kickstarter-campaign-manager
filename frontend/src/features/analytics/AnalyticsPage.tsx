@@ -94,6 +94,15 @@ export function AnalyticsPage() {
               columnLabel="Region"
               rows={data.breakdown.by_region}
             />
+            {data.breakdown.kickstarter_arrivals.length > 0 && (
+              <ConversionTable
+                title="Reaching your Kickstarter page"
+                description="Visits to the page itself. Kickstarter fires no event when someone follows, so this is as far as the funnel can be measured."
+                columnLabel="Referrer"
+                hideConversion
+                rows={data.breakdown.kickstarter_arrivals}
+              />
+            )}
           </div>
         )}
         <div className="grid gap-4 md:grid-cols-2">

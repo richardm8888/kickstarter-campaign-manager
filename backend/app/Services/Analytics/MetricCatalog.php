@@ -56,6 +56,9 @@ class MetricCatalog
         'sessions_by_source' => self::DAILY_TOTAL,
         'leads_by_source' => self::DAILY_TOTAL,
         'sessions_by_region' => self::DAILY_TOTAL,
+        // Visits to the Kickstarter page itself, when its Google Analytics
+        // ID points at the same property.
+        'ks_page_sessions_by_source' => self::DAILY_TOTAL,
         'leads_by_region' => self::DAILY_TOTAL,
 
         'signups' => self::DELTA,

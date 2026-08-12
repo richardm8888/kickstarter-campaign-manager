@@ -98,7 +98,7 @@ class DailyBriefTest extends TestCase
 
         $this->assertSame('bottleneck_email_to_follower', $tasks[0]['signal_key']);
         $this->assertSame('high', $tasks[0]['priority']);
-        $this->assertStringContainsString('200 subscribers have produced 10 followers', $tasks[0]['why']);
+        $this->assertStringContainsString('200 subscribers and 10 followers your ads did not buy', $tasks[0]['why']);
         $this->assertNotEmpty($tasks[0]['action']);
         $this->assertGreaterThan(0, $tasks[0]['effort_minutes']);
     }
@@ -217,8 +217,10 @@ class DailyBriefTest extends TestCase
         $health = collect($brief['funnel_health'])->keyBy('key');
         $this->assertEquals(100, $health['email_subscribers']['value']);
         $this->assertEquals(40, $health['ks_followers']['value']);
-        // 40 followers from a list of 100.
-        $this->assertEquals(40, $health['email_to_follower']['value']);
+        // 40 followers from a list of 100, stated as a ratio rather than
+        // as a conversion rate nothing measures.
+        $this->assertEquals(40, $health['followers_per_hundred']['value']);
+        $this->assertSame('Followers per 100 subscribers', $health['followers_per_hundred']['label']);
     }
 
     public function test_history_shows_what_was_raised_before(): void

@@ -159,6 +159,14 @@ class ConversionBreakdownTest extends TestCase
                     ['rows' => [
                         ['dimensionValues' => [['value' => '20260801'], ['value' => 'GB']], 'metricValues' => [['value' => '20']]],
                     ]],
+                ]])
+                // Sessions on the Kickstarter page itself, which arrive
+                // only when its Google Analytics ID points here.
+                ->push(['reports' => [
+                    ['rows' => [
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'mailerlite']], 'metricValues' => [['value' => '31']]],
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'fb']], 'metricValues' => [['value' => '64']]],
+                    ]],
                 ]]),
         ]);
 
@@ -191,6 +199,53 @@ class ConversionBreakdownTest extends TestCase
             ->first(fn ($s) => $s->dimensions['region'] === 'uk');
 
         $this->assertSame(20.0, (float) $ukLeads->value);
+
+        $fromEmail = $project->metricSnapshots()
+            ->where('metric', 'ks_page_sessions_by_source')->get()
+            ->first(fn ($s) => $s->dimensions['source'] === 'mailerlite');
+
+        $this->assertSame(31.0, (float) $fromEmail->value);
+    }
+
+    public function test_kickstarter_page_visits_are_read_by_hostname(): void
+    {
+        // The tag on a Kickstarter page reports into the same property as
+        // the creator's own site, so hostname is the only thing separating
+        // them.
+        Http::fake([
+            'oauth2.googleapis.com/*' => Http::response(['access_token' => 'tok']),
+            'analyticsdata.googleapis.com/*' => Http::response(['reports' => [
+                ['rows' => []], ['rows' => []], ['rows' => []], ['rows' => []],
+            ]]),
+        ]);
+
+        $project = Project::factory()->create();
+        Integration::factory()->for($project)->create([
+            'provider' => 'ga4',
+            'credentials' => [
+                'property_id' => '1',
+                'service_account_json' => $this->serviceAccountKey(),
+            ],
+        ]);
+
+        app(\App\Integrations\IntegrationManager::class)->for($project, 'ga4')->sync();
+
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), 'analyticsdata')) {
+                return true;
+            }
+
+            foreach ($request->data()['requests'] ?? [] as $report) {
+                if (($report['dimensionFilter']['filter']['fieldName'] ?? null) === 'hostName') {
+                    return str_contains(
+                        $report['dimensionFilter']['filter']['stringFilter']['value'] ?? '',
+                        'kickstarter.com',
+                    );
+                }
+            }
+
+            return true;
+        });
     }
 
     public function test_sessions_are_not_scoped_to_visitors_who_converted(): void

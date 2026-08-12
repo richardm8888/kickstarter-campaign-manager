@@ -31,6 +31,7 @@ class ConversionBreakdown
         return [
             'by_source' => $this->bySource($project, $days),
             'by_region' => $this->byRegion($project, $days),
+            'kickstarter_arrivals' => $this->kickstarterArrivals($project, $days),
         ];
     }
 
@@ -95,6 +96,41 @@ class ConversionBreakdown
                 $totals['leads_by_region'] ?? 0.0,
             );
         }, Region::ordered());
+    }
+
+    /**
+     * Who reached the Kickstarter page, and from where.
+     *
+     * This is the end of what can be measured. Kickstarter fires no event
+     * when somebody follows, so the last step of the funnel is invisible
+     * however the tracking is set up — an arrival is not a follow, and
+     * saying otherwise would be inventing the number that matters most.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function kickstarterArrivals(Project $project, int $days): array
+    {
+        $rows = [];
+
+        foreach ($this->segments->get(
+            $project,
+            ['ks_page_sessions_by_source'],
+            'source',
+            $days,
+            'ga4',
+        ) as $segment) {
+            $rows[] = [
+                'key' => (string) $segment['dimensions']['source'],
+                'label' => (string) $segment['dimensions']['source'],
+                'sessions' => (int) $segment['totals']['ks_page_sessions_by_source'],
+                'leads' => 0,
+                'conversion' => null,
+            ];
+        }
+
+        usort($rows, fn (array $a, array $b) => $b['sessions'] <=> $a['sessions']);
+
+        return array_slice($rows, 0, 8);
     }
 
     /** @return array<string, mixed> */

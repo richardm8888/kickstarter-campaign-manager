@@ -52,6 +52,28 @@ class AudienceSize
         );
     }
 
+    /**
+     * Followers the ads did not buy.
+     *
+     * Meta reports the follows its own ads produced, so subtracting them
+     * leaves the ones that came from everything else — the email list,
+     * the community, word of mouth. Without this, running Kickstarter-page
+     * ads makes an email list look like it is converting brilliantly
+     * while the email list does nothing at all.
+     *
+     * An approximation, and worth being honest about which way it errs:
+     * the follower count is a level while ad follows are a running total,
+     * so anyone who followed via an ad and later unfollowed is subtracted
+     * without ever having been added. That biases this low, which is the
+     * safer direction for a figure used to decide whether to nag a list.
+     */
+    public function organicFollowers(Project $project): int
+    {
+        $bought = $this->series->sum($project, 'ad_follows', 3650);
+
+        return (int) max(0, $this->followers($project) - $bought);
+    }
+
     /** New contacts in the window, used for conversion and cost per signup. */
     public function recentSignups(Project $project, int $days = 30): int
     {

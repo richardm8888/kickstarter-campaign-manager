@@ -255,6 +255,34 @@ Consequences:
   pattern needs rewriting.
 - Post-campaign truth arrives as a CSV upload (Phase 5).
 
+### The last step of the funnel cannot be measured
+
+Email → click → **follow** stops being visible at the follow.
+
+Kickstarter's project settings take a Google Analytics ID, and the tag
+fires on the project page, reporting into the same property with
+`hostName` containing `kickstarter.com`. So arrivals *are* measurable, and
+`ks_page_sessions_by_source` records them by referrer — which answers the
+question that actually changes the morning's work: whether people from the
+email reach the page at all.
+
+What Kickstarter never fires is an event when somebody follows. No pixel,
+no callback, no API. So a follow can only ever be inferred from the total
+count moving, and never attributed to a source.
+
+Consequences, and the reason the wording matters:
+
+- **Followers ÷ subscribers is a ratio, not a conversion rate.** Nothing
+  links the two populations. It was labelled "email to follower converting
+  at 29%", which claimed a measurement nobody has and could exceed 100%.
+- **Ad-bought follows are subtracted** before that ratio is taken
+  (`AudienceSize::organicFollowers`), because otherwise Kickstarter-page
+  ads make an idle email list look like it is converting brilliantly.
+- Where arrivals are visible, the daily list says which half is broken —
+  nobody arriving means the emails are not asking, plenty arriving and few
+  following means the page is not persuading — and says nothing at all
+  when the tag is absent.
+
 Two cautions learnt the hard way here, both worth keeping:
 
 **A truncated search is not evidence of absence.** `kickstarter:inspect`
