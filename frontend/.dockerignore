@@ -1,0 +1,6 @@
+# compose builds this directory as its own context, so the repository
+# root's .dockerignore does not apply here.
+node_modules
+dist
+.env
+.env.*

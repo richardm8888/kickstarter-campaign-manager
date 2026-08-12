@@ -1,0 +1,22 @@
+# compose builds this directory as its own context, so the repository
+# root's .dockerignore does not apply here.
+
+# `composer install --no-dev` runs before the source is copied. Without
+# this line the copy puts the builder's own vendor/ back on top of it,
+# dev dependencies and all, and the image ends up holding whatever
+# happened to be on the machine that built it.
+vendor
+
+# Secrets do not belong in an image layer, and the container is
+# configured by the environment compose passes it.
+.env
+.env.*
+
+node_modules
+storage/logs/*
+storage/framework/cache/data/*
+database/*.sqlite
+# A config cache built on a developer's machine names that machine's
+# database. It must never be what the container starts with.
+bootstrap/cache/*.php
+.phpunit.result.cache
