@@ -79,7 +79,7 @@ class EventDiagnosticsTest extends TestCase
 
         // 7 of 123 visits = 6%.
         $this->assertStringContainsString('6% of visits', $findings->first()['title']);
-        $this->assertStringContainsString('123 landing page views', $findings->first()['body']);
+        $this->assertStringContainsString('produced 123 page views', $findings->first()['body']);
         $this->assertStringContainsString('missing from the page', $findings->first()['body']);
     }
 
@@ -93,7 +93,7 @@ class EventDiagnosticsTest extends TestCase
 
         $titles = collect($this->diagnostics($project))->pluck('title')->implode(' ');
 
-        $this->assertStringContainsString('never load your page', $titles);
+        $this->assertStringContainsString('never load it', $titles);
     }
 
     public function test_it_explains_when_meta_sees_fewer_signups_than_we_recorded(): void

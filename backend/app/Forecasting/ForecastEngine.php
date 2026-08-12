@@ -41,7 +41,7 @@ class ForecastEngine
 
         return array_map(function (string $name) use ($base) {
             $rates = BackerRates::scenario($name);
-            $forecast = $this->forecast($this->withBackerRates($base, $rates));
+            $forecast = $this->forecast($base->withRates($rates));
 
             return [
                 'scenario' => $name,
@@ -108,7 +108,9 @@ class ForecastEngine
         }
 
         $backersNeeded = (int) ceil($input->fundingGoal / $input->averagePledge);
-        $alreadyHave = $input->audience->backers($input->backerRates);
+        // Friends and family are already promised, so they reduce what
+        // the budget has to go and buy.
+        $alreadyHave = $input->audience->backers($input->backerRates) + $input->guaranteedBackers;
         $shortfall = max(0, $backersNeeded - $alreadyHave);
 
         $marginal = $input->marginalBackerRate();
@@ -178,8 +180,9 @@ class ForecastEngine
         $visitors = $input->cpc > 0 ? (int) floor($input->plannedAdSpend / 100 / $input->cpc) : 0;
         $marginal = $input->marginalBackerRate();
 
-        // Signups needed on top of what the audience already delivers.
-        $alreadyHave = $input->audience->backers($input->backerRates);
+        // Signups needed on top of what the audience — and anyone already
+        // promised — delivers.
+        $alreadyHave = $input->audience->backers($input->backerRates) + $input->guaranteedBackers;
         $shortfall = max(0, $backersNeeded - $alreadyHave);
         $signupsNeeded = $marginal > 0 ? (int) ceil($shortfall / $marginal) : 0;
         $requiredConversion = $visitors > 0 ? $signupsNeeded / $visitors : null;
@@ -187,7 +190,10 @@ class ForecastEngine
         // Backer rate needed across the whole projected audience, if
         // conversion stays where it is measured.
         $projected = $this->projectedAudience($input, $visitors);
-        $requiredBackerRate = $projected->total() > 0 ? $backersNeeded / $projected->total() : null;
+        // Net of the guaranteed backers, since the projected audience is
+        // not being asked to produce those.
+        $fromAudience = max(0, $backersNeeded - $input->guaranteedBackers);
+        $requiredBackerRate = $projected->total() > 0 ? $fromAudience / $projected->total() : null;
 
         // What that audience can actually do at the top of every range.
         $ceiling = $projected->blendedRate(BackerRates::scenario(BackerRates::OPTIMISTIC));
@@ -246,22 +252,6 @@ class ForecastEngine
         };
     }
 
-    /** @param  array<string, float>  $rates */
-    private function withBackerRates(ForecastInput $input, array $rates): ForecastInput
-    {
-        return new ForecastInput(
-            audience: $input->audience,
-            plannedAdSpend: $input->plannedAdSpend,
-            cpc: $input->cpc,
-            visitorToSubscriberRate: $input->visitorToSubscriberRate,
-            backerRates: $rates,
-            averagePledge: $input->averagePledge,
-            fundingGoal: $input->fundingGoal,
-            dataCompleteness: $input->dataCompleteness,
-            adMix: $input->adMix,
-        );
-    }
-
     public function forecast(ForecastInput $input): Forecast
     {
         $projectedVisitors = $input->cpc > 0
@@ -278,7 +268,14 @@ class ForecastEngine
             );
         }
 
-        $expectedBackers = $projected->backers($input->backerRates);
+        // Kept as its own line rather than mixed into a segment: nothing
+        // was spent to get these people and no conversion rate applies to
+        // them, so blending them in would flatter every rate on the page.
+        if ($input->guaranteedBackers > 0) {
+            $bySegment[BackerRates::GUARANTEED] = $input->guaranteedBackers;
+        }
+
+        $expectedBackers = $projected->backers($input->backerRates) + $input->guaranteedBackers;
         $expectedFunding = $expectedBackers * $input->averagePledge;
 
         $goalCoverage = $input->fundingGoal > 0
@@ -350,6 +347,9 @@ class ForecastEngine
             backerRates: BackerRates::planning(),
             averagePledge: $project->average_pledge > 0 ? $project->average_pledge : 45_00,
             fundingGoal: $project->funding_goal,
+            // Cast rather than trusted: the column defaults to 0, but a
+            // model that has not been reloaded since insert reports null.
+            guaranteedBackers: (int) $project->guaranteed_backers,
             dataCompleteness: $this->dataQuality(
                 $project,
                 $observedCpc !== null,
@@ -455,7 +455,10 @@ class ForecastEngine
             return null;
         }
 
+        // Active only: the forecast asks how many people will be on
+        // the list at launch, and someone who left will not be.
         $signups = $project->subscribers()
+            ->active()
             ->where('created_at', '>=', now()->subDays(30))
             ->count();
 

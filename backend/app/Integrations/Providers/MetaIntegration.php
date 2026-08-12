@@ -138,7 +138,8 @@ class MetaIntegration extends BaseIntegration
         foreach ($days as $row) {
             $date = $row['date_stop'] ?? now()->toDateString();
             $adId = (string) ($row['ad_id'] ?? 'unknown');
-            $adType = $adTypes[$adId] ?? AdType::Unknown;
+            $adMeta = $adTypes[$adId] ?? null;
+            $adType = $adMeta['type'] ?? AdType::Unknown;
 
             $spend = (float) ($row['spend'] ?? 0);
             $impressions = (float) ($row['impressions'] ?? 0);
@@ -162,6 +163,7 @@ class MetaIntegration extends BaseIntegration
                 'objective' => $row['objective'] ?? null,
                 'optimization_goal' => $row['optimization_goal'] ?? null,
                 'ad_type' => $adType->value,
+                'ad_status' => $adMeta['status'] ?? 'ACTIVE',
             ];
 
             foreach ([
@@ -232,7 +234,7 @@ class MetaIntegration extends BaseIntegration
      * Classifies every ad by where it sends people, which decides how its
      * conversions are read.
      *
-     * @return array<string, AdType>
+     * @return array<string, array{type: AdType, status: string}>
      */
     private function adTypes(array $credentials): array
     {
@@ -242,7 +244,10 @@ class MetaIntegration extends BaseIntegration
         try {
             $ads = $this->paginate("https://graph.facebook.com/{$version}/act_{$accountId}/ads", [
                 'access_token' => $credentials['access_token'],
-                'fields' => 'id,creative{object_story_spec,asset_feed_spec,object_type}',
+                // effective_status rather than status: an ad set to ACTIVE
+                // inside a paused campaign is not running, and telling a
+                // creator to fix an ad nobody can see wastes their morning.
+                'fields' => 'id,effective_status,creative{object_story_spec,asset_feed_spec,object_type}',
                 'limit' => 200,
             ]);
         } catch (RequestException $e) {
@@ -262,7 +267,12 @@ class MetaIntegration extends BaseIntegration
                 continue;
             }
 
-            $types[(string) $ad['id']] = AdType::fromCreative($ad['creative'] ?? []);
+            $types[(string) $ad['id']] = [
+                'type' => AdType::fromCreative($ad['creative'] ?? []),
+                // Anything we could not read is treated as running, so a
+                // field we failed to fetch hides nothing.
+                'status' => strtoupper((string) ($ad['effective_status'] ?? 'ACTIVE')),
+            ];
         }
 
         return $types;

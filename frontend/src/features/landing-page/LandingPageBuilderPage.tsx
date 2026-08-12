@@ -89,7 +89,17 @@ export function LandingPageBuilderPage() {
         </p>
       )}
 
-      <PageAnalyser projectId={projectId} initialUrl={usesOwnPage ? externalUrl : ''} />
+      <div className="flex flex-col gap-4">
+        <PageAnalyser projectId={projectId} initialUrl={usesOwnPage ? externalUrl : ''} />
+
+        {/* The Kickstarter page is audited against different things — video,
+            tiers, risks — so it gets its own pass rather than sharing one. */}
+        <PageAnalyser
+          projectId={projectId}
+          pageType="kickstarter"
+          initialUrl={project?.project.kickstarter_url ?? ''}
+        />
+      </div>
 
       {/* With their own page live, the built-in builder is noise — keep it
           reachable for anyone who changes their mind, but out of the way. */}

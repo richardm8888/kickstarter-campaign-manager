@@ -1,0 +1,92 @@
+name: Deploy
+
+# Ships main to the droplet once its images exist.
+#
+# Triggered by the image build finishing rather than by the push itself,
+# because deploying a commit whose images are still building pulls the
+# previous ones and looks like the deploy silently did nothing.
+#
+# Requires these repository secrets — see docs/DEPLOY.md:
+#   SSH_HOST         droplet address
+#   SSH_USER         user with docker permissions
+#   SSH_PRIVATE_KEY  private half of a key in that user's authorized_keys
+# and optionally the DEPLOY_PATH variable (defaults to /opt/kickstarter-launch-os).
+
+on:
+  workflow_run:
+    workflows: ['Publish images']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit to deploy. Leave empty for the tip of main. Use a previous commit to roll back.'
+        required: false
+
+concurrency:
+  # Deploys must not overlap: two of them interleaving migrations and
+  # container swaps is how a database ends up half-migrated. Queue rather
+  # than cancel, so a merge cannot cancel the deploy of the merge before it
+  # and leave that commit unshipped.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # A failed or cancelled build has nothing worth shipping. Manual runs
+    # skip the check, since that is how a rollback is triggered.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Choose the commit
+        id: target
+        run: |
+          SHA="${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Deploying $SHA"
+
+      - name: Deploy over SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/kickstarter-launch-os' }}
+          SHA: ${{ steps.target.outputs.sha }}
+          # Short-lived and scoped to this repository, so the droplet needs
+          # no stored registry credentials of its own.
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # The script is piped in rather than run from the droplet's
+          # checkout, so a deploy works even when that checkout is behind
+          # or broken — which is exactly when one is most needed.
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
+            "REGISTRY_TOKEN='$REGISTRY_TOKEN' REGISTRY_USER='${{ github.actor }}' DEPLOY_PATH='$DEPLOY_PATH' bash -s -- '$SHA'" \
+            < deploy/deploy.sh
+
+      - name: Report
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### Deployed \`${{ steps.target.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Deploy failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The droplet rolls back on its own if the new build is unhealthy." >> "$GITHUB_STEP_SUMMARY"
+            echo "Re-run this workflow with an earlier commit to force a specific version." >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -103,13 +103,22 @@ class MailerLiteIntegration extends BaseIntegration
     {
         $rows = [];
 
+        // Unfiltered, this counts everyone who was ever added — including
+        // people who have unsubscribed or bounced. That figure only ever
+        // rises, so a shrinking list reads as a flat one and every
+        // forecast built on it drifts further out as the campaign ages.
         $total = Http::withToken($credentials['api_key'])
             ->acceptJson()
-            ->get('https://connect.mailerlite.com/api/subscribers', ['limit' => 0])
+            ->get('https://connect.mailerlite.com/api/subscribers', [
+                'limit' => 0,
+                'filter[status]' => 'active',
+            ])
             ->throw()
             ->json('total', 0);
 
         $rows[] = ['metric' => 'email_subscribers', 'value' => (float) $total, 'recorded_at' => now()];
+
+        $this->reconcileUnsubscribes($credentials);
 
         return [
             ...$rows,
@@ -117,6 +126,63 @@ class MailerLiteIntegration extends BaseIntegration
             ...$this->campaignMetrics($credentials),
             ...$this->cohortMetrics($credentials),
         ];
+    }
+
+    /**
+     * Marks people who left in MailerLite as gone here too.
+     *
+     * Unsubscribing happens in the email, so MailerLite learns about it
+     * and we never would. Our own rows would otherwise keep counting
+     * someone who has left — and those rows are what the funnel, the
+     * conversion rates and the growth curve are built from.
+     *
+     * Runs on the sync rather than as its own job because it needs the
+     * same credentials and the same hourly cadence; a departure being
+     * recognised an hour late costs nothing.
+     */
+    private function reconcileUnsubscribes(array $credentials): void
+    {
+        $emails = [];
+        $cursor = null;
+
+        // Bounded like the cohort pass, so a large list cannot stall the
+        // sync. Departures are rare enough that ten pages is generous.
+        for ($page = 0; $page < 10; $page++) {
+            $response = Http::withToken($credentials['api_key'])
+                ->acceptJson()
+                ->get('https://connect.mailerlite.com/api/subscribers', array_filter([
+                    'limit' => 100,
+                    'cursor' => $cursor,
+                    'filter[status]' => 'unsubscribed',
+                ]))
+                ->throw()
+                ->json();
+
+            $people = $response['data'] ?? [];
+
+            foreach ($people as $person) {
+                if (filled($person['email'] ?? null)) {
+                    $emails[] = mb_strtolower($person['email']);
+                }
+            }
+
+            $cursor = $response['meta']['next_cursor'] ?? null;
+
+            if ($cursor === null || $people === []) {
+                break;
+            }
+        }
+
+        if ($emails === []) {
+            return;
+        }
+
+        // Only rows not already marked, so the date stays the first time
+        // we saw them leave rather than moving forward every hour.
+        $this->project->subscribers()
+            ->whereNull('unsubscribed_at')
+            ->whereIn('email', $emails)
+            ->update(['unsubscribed_at' => now()]);
     }
 
     /**

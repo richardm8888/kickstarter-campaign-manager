@@ -43,6 +43,24 @@ enum AdType: string
         return $this === self::Kickstarter;
     }
 
+    /**
+     * Whether a click on this ad could ever load a page carrying our
+     * pixel. An instant form opens inside Meta and never leaves it; a
+     * Kickstarter ad loads a page we cannot tag.
+     *
+     * Unclassified counts as yes. We reach here when a creative could not
+     * be read, and staying silent about an ad we failed to categorise
+     * would turn a missing field into a missing diagnostic — the exact
+     * failure the tracking checks exist to catch.
+     */
+    public function canLoadOurPage(): bool
+    {
+        return match ($this) {
+            self::InstantForm, self::Kickstarter => false,
+            default => true,
+        };
+    }
+
     /** Derived from an ad's creative: its form, or the link it points at. */
     public static function fromCreative(array $creative): self
     {

@@ -67,7 +67,13 @@ class LandingPageAnalysisTest extends TestCase
         $this->assertFalse($checks['email_capture']['passed']);
         $this->assertFalse($checks['headline']['passed']);
         $this->assertNotEmpty($checks['email_capture']['recommendation']);
-        $this->assertStringContainsString('captures email', strtolower($response->json('analysis.summary')));
+
+        // The summary names the next action, not the label of what failed:
+        // "biggest wins: captures email addresses" reads as though it does.
+        $this->assertStringContainsString(
+            'Start here: Add an email capture form',
+            $response->json('analysis.summary'),
+        );
     }
 
     public function test_analyses_are_kept_as_history(): void
@@ -130,6 +136,65 @@ class LandingPageAnalysisTest extends TestCase
             ->assertJsonValidationErrors('url');
     }
 
+    public function test_a_page_that_blocks_us_is_not_scored_as_a_bad_page(): void
+    {
+        // Kickstarter and friends return 403 to automated readers. Every
+        // content check fails when there is no content, so storing that
+        // run would tell the creator their page scores 8 out of 100.
+        Http::fake(['https://example.com*' => Http::response('Forbidden', 403)]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('url');
+
+        $this->assertSame(0, $project->landingPageAnalyses()->count());
+    }
+
+    public function test_pages_are_fetched_as_a_browser_would(): void
+    {
+        // Announcing ourselves as a tool is the better instinct and it is
+        // what we did first, but bot protection 403s it, and we cannot
+        // read a creator's own public page without getting through.
+        Http::fake(['https://example.com*' => Http::response($this->goodPage())]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
+            ->assertCreated();
+
+        // Client hints are the part Cloudflare's challenge weighs: without
+        // them a live Kickstarter page returns 403 cf-mitigated: challenge,
+        // and with them it returns the page. Measured, not assumed.
+        Http::assertSent(fn ($request) => str_contains($request->header('User-Agent')[0], 'Chrome/')
+            && $request->hasHeader('Accept-Language')
+            && $request->hasHeader('sec-ch-ua')
+            && $request->hasHeader('sec-ch-ua-platform'));
+    }
+
+    public function test_a_body_we_cannot_decode_is_not_scored_as_an_empty_page(): void
+    {
+        // We ask for brotli because dropping it fails the challenge, but a
+        // curl built without it hands back compressed bytes and a 200.
+        Http::fake(['https://example.com*' => Http::response(
+            "\x1b\x2a\x00\x00\x24\xb0\xe2\x99\x80\x12",
+            200,
+            ['Content-Encoding' => 'br'],
+        )]);
+
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('url');
+
+        $this->assertSame(0, $project->landingPageAnalyses()->count());
+    }
+
     public function test_other_users_cannot_analyse_a_project_they_do_not_own(): void
     {
         $project = Project::factory()->create();
@@ -137,6 +202,35 @@ class LandingPageAnalysisTest extends TestCase
 
         $this->postJson("/api/projects/{$project->id}/page-analyses", ['url' => 'https://example.com'])
             ->assertForbidden();
+    }
+
+    public function test_analyses_saved_before_three_state_results_are_read_forward(): void
+    {
+        // Rows written by the two-state version are still in every existing
+        // project's history. Serving them without a `result` crashed the
+        // page that renders them, so the shape is completed on read.
+        $project = Project::factory()->create();
+        Sanctum::actingAs($project->user);
+
+        \DB::table('landing_page_analyses')->insert([
+            'project_id' => $project->id,
+            'url' => 'https://example.com',
+            'page_type' => 'landing',
+            'score' => 60,
+            'checks' => json_encode([
+                ['key' => 'email_capture', 'label' => 'Captures email addresses', 'passed' => true, 'weight' => 25, 'recommendation' => ''],
+                ['key' => 'video', 'label' => 'Has a video', 'passed' => false, 'weight' => 15, 'recommendation' => 'Add one'],
+            ]),
+            'summary' => 'Old analysis',
+            'created_at' => now(),
+        ]);
+
+        $checks = collect($this->getJson("/api/projects/{$project->id}/page-analyses")->assertOk()
+            ->json('analyses.0.checks'))->keyBy('key');
+
+        $this->assertSame('pass', $checks['email_capture']['result']);
+        $this->assertSame('fail', $checks['video']['result']);
+        $this->assertNull($checks['video']['detail']);
     }
 
     public function test_a_javascript_loaded_form_counts_as_email_capture(): void

@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { getDashboard } from './api'
 import { getProject } from '@/features/projects/api'
 import { SetupCard } from './SetupCard'
+import { TodayCard } from '@/features/daily/TodayCard'
 import { StatCard } from './StatCard'
 import { Funnel } from './Funnel'
 import { PageHeader } from '@/components/layout/ProjectLayout'
@@ -71,6 +72,8 @@ export function DashboardPage() {
       </PageHeader>
 
       <SetupCard setup={setup} projectId={projectId} />
+
+      <TodayCard projectId={projectId} />
 
       <section aria-label="Key metrics" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Visitors (30d)" value={number(cards.visitors.value ?? 0)} change={cards.visitors.change} />

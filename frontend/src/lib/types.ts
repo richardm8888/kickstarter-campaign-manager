@@ -14,15 +14,18 @@ export interface Project {
   currency: string
   funding_goal: number
   average_pledge: number
+  guaranteed_backers: number
   launch_date: string | null
   created_at: string
 }
 
-export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning'
+export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning' | 'off'
 
 export interface Ad {
   ad_id: string
   ad_name: string
+  /** Still able to be shown. Disabled ads carry no verdict. */
+  active: boolean
   adset_name: string | null
   campaign_name: string | null
   spend: number
@@ -88,19 +91,33 @@ export interface EventSetup {
   }>
 }
 
+export type PageType = 'landing' | 'kickstarter'
+
 export interface PageCheck {
   key: string
   label: string
+  /** 'unknown' means we could not tell, and it is excluded from the score. */
+  result: 'pass' | 'fail' | 'unknown'
   passed: boolean
   weight: number
   recommendation: string
+  detail: string | null
+}
+
+export interface PageFinding {
+  severity: 'critical' | 'warning' | 'idea'
+  title: string
+  body: string
+  fix: string
 }
 
 export interface PageAnalysis {
   id: number
   url: string
+  page_type: PageType
   score: number
   checks: PageCheck[]
+  findings: PageFinding[] | null
   summary: string | null
   created_at: string
 }
@@ -241,6 +258,9 @@ export interface CampaignHealth {
 
 export type AudienceSegment = 'standard' | 'followers' | 'vips'
 
+/** Segments plus friends and family, who are backers without converting. */
+export type BackerSource = AudienceSegment | 'guaranteed'
+
 export type BackerRates = Record<AudienceSegment, number>
 
 export interface ForecastScenario {
@@ -248,7 +268,7 @@ export interface ForecastScenario {
   label: string
   rates: BackerRates
   expected_backers: number
-  backers_by_segment: Record<AudienceSegment, number>
+  backers_by_segment: Partial<Record<BackerSource, number>>
   expected_funding: number
   goal_coverage: number
   funds_the_goal: boolean
@@ -342,4 +362,40 @@ export interface ForecastReport {
     cpc_measured: boolean
     conversion_measured: boolean
   }
+}
+
+export type DailyTaskStatus = 'open' | 'done' | 'dismissed'
+
+export type DailyPriority = 'high' | 'medium' | 'low'
+
+export interface DailyTask {
+  id: number
+  for_date: string
+  signal_key: string
+  priority: DailyPriority
+  title: string
+  why: string
+  action: string
+  effort_minutes: number
+  impact: DailyPriority
+  evidence: Record<string, unknown> | null
+  score: number
+  status: DailyTaskStatus
+  completed_at: string | null
+}
+
+export interface FunnelHealthRow {
+  key: string
+  label: string
+  value: number
+  format: 'number' | 'percent' | 'money'
+  direction: 'up' | 'down' | 'flat' | 'unknown'
+  lower_is_better?: boolean
+}
+
+export interface DailyBrief {
+  date: string
+  tasks: DailyTask[]
+  funnel_health: FunnelHealthRow[]
+  nothing_to_worry_about: string[]
 }

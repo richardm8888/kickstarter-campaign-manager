@@ -150,23 +150,41 @@ class LaunchPlan
             ->keyBy('date')
             ->map(fn (array $point) => (int) $point['value']);
 
-        $ourSignups = $project->subscribers()
-            ->where('created_at', '<=', $today->copy()->endOfDay())
-            ->get(['created_at'])
-            ->groupBy(fn ($subscriber) => $subscriber->created_at->toDateString())
-            ->map->count();
+        // Joins and departures are counted on the days they happened, so
+        // the line is net list size rather than everyone who ever signed
+        // up. Someone who left in April was genuinely on the list in
+        // March, and a curve that pretends otherwise rewrites history to
+        // flatter the present.
+        $joined = $this->countByDate($project, 'created_at', $today);
+        $left = $this->countByDate($project, 'unsubscribed_at', $today);
 
         $actuals = [];
-        $running = $project->subscribers()->where('created_at', '<', $start)->count();
+        $running = $project->subscribers()->where('created_at', '<', $start)->count()
+            - $project->subscribers()->where('unsubscribed_at', '<', $start)->count();
 
         for ($date = $start->copy(); $date->lte($today); $date->addDay()) {
             $key = $date->toDateString();
-            $running += $ourSignups[$key] ?? 0;
+            $running += ($joined[$key] ?? 0) - ($left[$key] ?? 0);
 
             $actuals[$key] = max($running, $reported[$key] ?? 0);
         }
 
         return $actuals;
+    }
+
+    /**
+     * How many rows carry a date in this column, per day.
+     *
+     * @return \Illuminate\Support\Collection<string, int>
+     */
+    private function countByDate(Project $project, string $column, Carbon $today): \Illuminate\Support\Collection
+    {
+        return $project->subscribers()
+            ->whereNotNull($column)
+            ->where($column, '<=', $today->copy()->endOfDay())
+            ->get([$column])
+            ->groupBy(fn ($subscriber) => $subscriber->{$column}->toDateString())
+            ->map->count();
     }
 
     /**

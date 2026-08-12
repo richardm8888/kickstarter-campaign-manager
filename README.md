@@ -8,9 +8,10 @@ advisor, not another analytics dashboard.
 
 | Area | What it does |
 |---|---|
-| **Dashboard** | Visitors, subscribers, VIP upgrades, conversion, cost per subscriber, revenue, projected backers, funding forecast — with the full launch funnel (Ads → Landing page → Email → VIP → Notify → Backer) |
+| **Dashboard** | Visitors, subscribers, VIP upgrades, conversion, cost per subscriber, Kickstarter followers, projected backers, funding forecast — with the full launch funnel (impressions → clicks → landing page views \| form views → signups → VIPs → backers) |
 | **Landing page builder** | Opinionated template with hero, video, features, testimonials, FAQ, email capture, £1 VIP upgrade, CTA, footer. Configuration over freedom; public capture API included |
-| **Integrations** | Meta Ads, Google Analytics 4, MailerLite, Stripe behind one `Integration` contract (`connect / disconnect / sync / status`), synced hourly into an append-only metrics store |
+| **Page audits** | Two analysers — your own landing page and your Kickstarter page — each scoring deterministic checks and then reading the page as a visitor would (see below) |
+| **Integrations** | Meta Ads, Google Analytics 4, MailerLite, Stripe behind one `Integration` contract (`connect / disconnect / sync / status`), synced into an append-only metrics store — metrics hourly, new contacts every five minutes |
 | **AI insights** | Rule-based signal detection (CPC spikes, conversion drops, list stalls, subscribers-needed) turned into plain-English recommendations; optional Anthropic-powered copy polish |
 | **Campaign health** | Weighted 0–100 readiness score across eight factors, each with a concrete next action |
 | **Funding forecast** | Deterministic engine: ad spend → visitors → subscribers → VIPs → backers → funding, with what-if preview and confidence rating |
@@ -91,6 +92,11 @@ ufw allow 8080/tcp
 
 Updating later: `git pull && docker compose up -d --build`.
 Logs: `docker compose logs -f backend`.
+
+**Or stop updating it by hand.** Once three secrets are set, merging to
+`main` builds the images, migrates and swaps the containers on its own,
+rolling back if the new build does not come up healthy — see
+[docs/DEPLOY.md](docs/DEPLOY.md).
 
 **Adding a domain later** (droplet already routes another domain through a
 host proxy): keep `HTTP_PORT=8080` and add a virtual host that proxies to
@@ -210,7 +216,7 @@ systemctl is-enabled docker      # expect: enabled
 provider, project, duration, metrics recorded, or the error:
 
 ```bash
-docker compose logs -f scheduler          # hourly trigger
+docker compose logs -f scheduler          # sync triggers
 docker compose logs -f queue              # the syncs themselves
 docker compose logs queue | grep 'Integration sync'
 ```
@@ -234,7 +240,11 @@ docker compose exec backend php artisan queue:retry all
 
 **Meta Instant Form leads.** Leads submitted through a Meta form stay
 inside Facebook, where you cannot email them. The scheduler imports them
-hourly and forwards them to MailerLite; run it on demand with:
+**every five minutes** and forwards them to MailerLite, so a welcome email
+follows a signup while the person still remembers signing up. A wider
+hourly sweep re-checks the past month and re-forwards anyone MailerLite
+never accepted, so a lead that arrived during an expired token is not lost.
+Run either on demand with:
 
 ```bash
 docker compose exec backend php artisan meta:import-leads
@@ -243,13 +253,37 @@ docker compose exec backend php artisan meta:import-leads
 The Meta token needs the `leads_retrieval` permission for this.
 
 **Stripe VIP purchases.** Select which Stripe products count as a VIP
-upgrade on the Integrations screen. Each hour, buyers of those products
-become VIP subscribers and are added to your VIP email group; every other
-purchase is counted as revenue only. On demand:
+upgrade on the Integrations screen. On the same five-minute cycle, buyers
+of those products become VIP subscribers and are added to your VIP email
+group; every other purchase is counted as revenue only. On demand:
 
 ```bash
 docker compose exec backend php artisan stripe:import-vips
 ```
+
+**Page audits.** Both analysers live on the Landing page screen and run two
+passes over whatever URL you give them.
+
+The **checks** are deterministic and rule-based, so the same page always
+scores the same and progress between runs is real. They go past "is there a
+form in the markup" to the things that actually cost signups: how many
+calls to action compete for one decision, how many fields the form asks
+for, how much copy a visitor wades through before meeting a next step,
+whether the headline says anything. A check has three outcomes, not two —
+where a signal cannot be read (a JavaScript-injected form, a Kickstarter
+markup change) it records that we could not tell and is excluded from the
+score entirely, rather than punishing the creator for our blind spot.
+
+The **UX walk** is the AI reading the page as a first-time visitor and
+saying what is wrong, quoting the words it is criticising and naming the
+change to make. It never touches the score: a language model's opinion
+should not move a number tracked week to week. Without `ANTHROPIC_API_KEY`
+the checks still run and the walk is simply absent.
+
+The Kickstarter analyser is a different audit, not the same one pointed
+elsewhere — video weight, title length, reward tier count, risks, shipping
+— and it detects whether the page is pre-launch or live, so a pre-launch
+page is never marked down for lacking reward tiers it cannot have yet.
 
 **Kickstarter followers.** Paste your pre-launch page URL into Settings and
 the scheduler reads its follower count every hour — Kickstarter publishes no
@@ -342,11 +376,14 @@ web service.
    - `APP_KEY`: output of `openssl rand -base64 32 | sed 's/^/base64:/'`
    - `DB_URL`: the Neon connection string (keep `?sslmode=require`)
    - `ANTHROPIC_API_KEY`: optional
-3. **Hourly syncs** — the free tier has no resident scheduler, so a GitHub
-   Actions cron (`.github/workflows/scheduled-sync.yml`) pings the app
-   instead. Add two repository secrets in GitHub (*Settings → Secrets and
-   variables → Actions*): `APP_URL` (your Render URL) and `CRON_SECRET`
-   (copy the generated value from the Render environment tab).
+3. **Scheduled syncs** — the free tier has no resident scheduler, so a
+   GitHub Actions cron (`.github/workflows/scheduled-sync.yml`) pings the
+   app instead. Add two repository secrets in GitHub (*Settings → Secrets
+   and variables → Actions*): `APP_URL` (your Render URL) and `CRON_SECRET`
+   (copy the generated value from the Render environment tab). Note that
+   this runs hourly at best — GitHub throttles scheduled workflows heavily,
+   so new contacts wait up to an hour for their welcome email. The
+   five-minute cycle needs the resident scheduler in `docker-compose.yml`.
 
 Free-tier trade-offs: the service sleeps after ~15 minutes idle (first visit
 takes ~30–60 s to wake — relevant for public landing pages), and queued jobs

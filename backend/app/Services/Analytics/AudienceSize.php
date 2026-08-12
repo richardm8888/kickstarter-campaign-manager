@@ -20,7 +20,7 @@ class AudienceSize
     public function total(Project $project): int
     {
         return max(
-            $project->subscribers()->count(),
+            $project->subscribers()->active()->count(),
             (int) ($this->series->latest($project, 'email_subscribers') ?? 0),
         );
     }
@@ -32,7 +32,7 @@ class AudienceSize
     public function vips(Project $project): int
     {
         return max(
-            $project->subscribers()->where('is_vip', true)->count(),
+            $project->subscribers()->active()->where('is_vip', true)->count(),
             (int) ($this->series->latest($project, 'email_vip_subscribers') ?? 0),
         );
     }
@@ -56,6 +56,7 @@ class AudienceSize
     public function recentSignups(Project $project, int $days = 30): int
     {
         return $project->subscribers()
+            ->active()
             ->where('created_at', '>=', now()->subDays($days))
             ->count();
     }
@@ -63,6 +64,6 @@ class AudienceSize
     /** True when the provider knows about contacts we have no record of. */
     public function hasExternalContacts(Project $project): bool
     {
-        return $this->total($project) > $project->subscribers()->count();
+        return $this->total($project) > $project->subscribers()->active()->count();
     }
 }

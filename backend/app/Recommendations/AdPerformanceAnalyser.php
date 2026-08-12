@@ -27,6 +27,13 @@ use App\Services\Analytics\AdTotals;
  */
 class AdPerformanceAnalyser
 {
+    /**
+     * Meta's effective_status values that mean the ad can still be shown.
+     * PENDING_REVIEW and IN_PROCESS are about to run, so they stay in the
+     * list; everything else is paused, archived, rejected or spent out.
+     */
+    private const RUNNING_STATUSES = ['ACTIVE', 'PENDING_REVIEW', 'IN_PROCESS', 'PREAPPROVED'];
+
     /** Minimum spend before a verdict is more than noise. */
     private const MIN_SPEND = 20.0;
 
@@ -61,8 +68,18 @@ class AdPerformanceAnalyser
         $affordableCpf = $this->worthOf($project, BackerRates::FOLLOWERS);
         $hasLeadData = $totalLeads > 0;
 
+        // An ad that is off is history, not a decision. Judging it anyway
+        // fills the list with work nobody can act on — you cannot fix the
+        // creative on an ad nobody is being shown — and buries the ads
+        // that are actually spending money right now.
         $ads = array_map(
-            fn (array $ad) => $ad + $this->judge($ad, $accountCpl, $affordableCpl, $affordableCpf, $hasLeadData),
+            fn (array $ad) => $ad + ($ad['active']
+                ? $this->judge($ad, $accountCpl, $affordableCpl, $affordableCpf, $hasLeadData)
+                : [
+                    'verdict' => AdVerdict::Off,
+                    'reason' => 'Not running, so its numbers are history rather than a decision.',
+                    'action' => 'Nothing to do unless you turn it back on.',
+                ]),
             $ads,
         );
 
@@ -141,6 +158,13 @@ class AdPerformanceAnalyser
             return [
                 'ad_id' => $dimensions['ad_id'],
                 'ad_name' => $dimensions['ad_name'] ?? 'Unnamed ad',
+                // Anything we could not read is treated as running, so a
+                // field Meta stopped returning cannot silently hide ads.
+                'active' => in_array(
+                    strtoupper((string) ($dimensions['ad_status'] ?? 'ACTIVE')),
+                    self::RUNNING_STATUSES,
+                    true,
+                ),
                 'adset_name' => $dimensions['adset_name'] ?? null,
                 'campaign_name' => $dimensions['campaign_name'] ?? null,
                 'objective' => $objective->value,

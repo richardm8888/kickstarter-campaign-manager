@@ -21,6 +21,7 @@ export interface ProjectInput {
   currency?: string
   funding_goal?: number
   average_pledge?: number
+  guaranteed_backers?: number
   launch_date?: string | null
 }
 
@@ -33,4 +34,11 @@ export function updateProject(
   input: Partial<ProjectInput>,
 ): Promise<{ project: Project }> {
   return api.patch<{ project: Project }>(`/projects/${projectId}`, input)
+}
+
+export function recordFollowers(
+  projectId: string,
+  count: number,
+): Promise<{ count: number; recorded_at: string }> {
+  return api.post(`/projects/${projectId}/kickstarter-followers`, { count })
 }

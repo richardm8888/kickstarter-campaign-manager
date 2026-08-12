@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getProject, updateProject } from './api'
+import { FollowerEntry } from './FollowerEntry'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ interface Form {
   currency: string
   funding_goal: string
   average_pledge: string
+  guaranteed_backers: string
   launch_date: string
   external_landing_url: string
   kickstarter_url: string
@@ -39,6 +41,7 @@ export function SettingsPage() {
         currency: p.currency,
         funding_goal: String(p.funding_goal / 100),
         average_pledge: String(p.average_pledge / 100),
+        guaranteed_backers: String(p.guaranteed_backers ?? 0),
         launch_date: p.launch_date ? p.launch_date.slice(0, 10) : '',
         external_landing_url: p.external_landing_url ?? '',
         kickstarter_url: p.kickstarter_url ?? '',
@@ -54,6 +57,7 @@ export function SettingsPage() {
         currency: input.currency,
         funding_goal: Math.round(Number(input.funding_goal || '0') * 100),
         average_pledge: Math.round(Number(input.average_pledge || '0') * 100),
+        guaranteed_backers: Number(input.guaranteed_backers || '0'),
         launch_date: input.launch_date || null,
         external_landing_url: input.external_landing_url || null,
         kickstarter_url: input.kickstarter_url || null,
@@ -152,6 +156,24 @@ export function SettingsPage() {
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
+              <Label htmlFor="s-guaranteed">Friends and family backing you</Label>
+              <Input
+                id="s-guaranteed"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                placeholder="e.g. 15"
+                value={form.guaranteed_backers}
+                onChange={set('guaranteed_backers')}
+              />
+              <p className="text-xs text-muted-foreground">
+                People who will back whatever happens. They are added on top of the forecast rather
+                than into it, since no ad bought them and no conversion rate applies. They matter
+                most in the first 48 hours, when early momentum decides who else ever sees you.
+              </p>
+              <FieldError messages={errors.guaranteed_backers} />
+            </div>
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="s-external">Your own landing page (optional)</Label>
               <Input
                 id="s-external"
@@ -194,6 +216,12 @@ export function SettingsPage() {
           )}
         </div>
       </form>
+
+      {/* Its own form posting to its own endpoint, so it sits outside the
+          settings form rather than nested inside it. */}
+      <div className="mt-4">
+        <FollowerEntry projectId={projectId} hasKickstarterUrl={form.kickstarter_url !== ''} />
+      </div>
     </>
   )
 }

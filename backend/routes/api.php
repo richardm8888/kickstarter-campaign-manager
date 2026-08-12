@@ -3,10 +3,12 @@
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DailyTaskController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ForecastController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InsightController;
+use App\Http\Controllers\Api\KickstarterFollowerController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\LandingPageController;
 use App\Http\Controllers\Api\MailerLiteGroupController;
@@ -15,7 +17,9 @@ use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\StripeProductController;
 use App\Http\Controllers\Api\PublicLandingPageController;
+use App\Jobs\ImportLeadsForAllProjects;
 use App\Jobs\SyncAllIntegrations;
+use App\Jobs\SyncKickstarterFollowers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -26,7 +30,12 @@ Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgot'])
 Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:5,1');
 
 // External scheduler hook: lets a GitHub Actions cron (or any scheduler)
-// trigger the hourly integration sync on hosts without a resident scheduler.
+// trigger the hourly work on hosts without a resident scheduler.
+//
+// It has to import contacts as well as metrics. Left to the metrics sync
+// alone, a host without a scheduler never pulls Instant Form leads out of
+// Facebook, so no welcome email is ever sent — the failure is silent and
+// looks like nobody signed up.
 Route::post('/internal/run-sync', function (Request $request) {
     $secret = config('app.cron_secret');
 
@@ -36,7 +45,9 @@ Route::post('/internal/run-sync', function (Request $request) {
         403,
     );
 
-    (new SyncAllIntegrations)->handle();
+    SyncAllIntegrations::dispatch();
+    ImportLeadsForAllProjects::dispatch();
+    SyncKickstarterFollowers::dispatch();
 
     return response()->json(['message' => 'Sync dispatched.']);
 })->middleware('throttle:10,1');
@@ -56,6 +67,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('projects/{project}')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'show']);
+
+        Route::get('/daily', [DailyTaskController::class, 'index']);
+        Route::get('/daily/history', [DailyTaskController::class, 'history']);
+        Route::patch('/daily/{task}', [DailyTaskController::class, 'update']);
         Route::get('/analytics', [AnalyticsController::class, 'show']);
         Route::get('/health', [HealthController::class, 'show']);
 
@@ -80,6 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/page-analyses', [PageAnalysisController::class, 'index']);
         Route::post('/page-analyses', [PageAnalysisController::class, 'store']);
+
+        Route::post('/kickstarter-followers', [KickstarterFollowerController::class, 'store']);
 
         Route::get('/landing-page', [LandingPageController::class, 'show']);
         Route::patch('/landing-page', [LandingPageController::class, 'update']);

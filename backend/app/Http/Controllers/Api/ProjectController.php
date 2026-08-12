@@ -31,6 +31,7 @@ class ProjectController extends Controller
             'currency' => ['nullable', 'string', 'size:3'],
             'funding_goal' => ['nullable', 'integer', 'min:0'],
             'average_pledge' => ['nullable', 'integer', 'min:0'],
+            'guaranteed_backers' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'launch_date' => ['nullable', 'date'],
         ]);
 
@@ -60,6 +61,7 @@ class ProjectController extends Controller
             'currency' => ['sometimes', 'string', 'size:3'],
             'funding_goal' => ['sometimes', 'integer', 'min:0'],
             'average_pledge' => ['sometimes', 'integer', 'min:0'],
+            'guaranteed_backers' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'launch_date' => ['nullable', 'date'],
         ]);
 
