@@ -31,18 +31,48 @@ out of your own droplet mid-setup.
 
 ### 1. A key for GitHub to use
 
-Your own SSH key would work, but give GitHub its own so it can be revoked
-without touching your access. On your machine:
+Your own SSH key would work, and putting that into the secret is a
+legitimate shortcut. Giving GitHub its own key only buys one thing — the
+ability to revoke its access without revoking yours — but it is cheap.
 
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/launch-os-deploy -C 'github-deploy' -N ''
-ssh-copy-id -i ~/.ssh/launch-os-deploy.pub <user>@<droplet-ip>
 ```
 
-`ssh-copy-id` will ask for the droplet password, or use your existing key
-if you have one. Check it worked before going further — a key that was
-never installed fails later as an unhelpful "Permission denied" inside a
-GitHub Action:
+Now install the public half on the droplet. **`ssh-copy-id` will not work
+on a stock DigitalOcean droplet**: it needs an existing way in, and these
+ship with `PasswordAuthentication no`, so with no authorised key already
+present it fails with `Permission denied (publickey)`.
+
+Pick whichever is true:
+
+- **You can already SSH in** (`ssh <user>@<droplet-ip> whoami` works) —
+  use that route to carry the new key over:
+
+  ```bash
+  cat ~/.ssh/launch-os-deploy.pub \
+    | ssh <user>@<droplet-ip> 'cat >> ~/.ssh/authorized_keys'
+  ```
+
+- **You generated the key on the droplet itself** — no SSH involved:
+
+  ```bash
+  cat ~/.ssh/launch-os-deploy.pub >> ~/.ssh/authorized_keys
+  ```
+
+- **You cannot get in at all from here** — DigitalOcean → your droplet →
+  **Console**, which needs no key. Print the public key wherever you made
+  it (`cat ~/.ssh/launch-os-deploy.pub`) and paste it in:
+
+  ```bash
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  echo 'ssh-ed25519 AAAA... github-deploy' >> ~/.ssh/authorized_keys
+  chmod 600 ~/.ssh/authorized_keys
+  ```
+
+Then check it, from the machine that holds the private key. A key that was
+never installed surfaces much later as an unhelpful "Permission denied"
+inside a GitHub Action:
 
 ```bash
 ssh -i ~/.ssh/launch-os-deploy <user>@<droplet-ip> 'whoami && docker ps'
