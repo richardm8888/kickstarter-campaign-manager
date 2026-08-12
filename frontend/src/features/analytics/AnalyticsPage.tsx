@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { getAnalytics, type AnalyticsCategory } from './api'
+import { ConversionTable } from './ConversionTable'
 import { MetricChart } from './MetricChart'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +12,7 @@ import { number } from '@/lib/format'
 
 const CATEGORIES: { key: AnalyticsCategory; label: string }[] = [
   { key: 'traffic', label: 'Traffic' },
+  { key: 'conversion', label: 'Conversion' },
   { key: 'ads', label: 'Ads' },
   { key: 'email', label: 'Email' },
   { key: 'revenue', label: 'Revenue' },
@@ -77,6 +79,23 @@ export function AnalyticsPage() {
           body="Connect the matching integration and data will start flowing in within the hour."
         />
       ) : (
+        <>
+        {data?.breakdown && (
+          <div className="mb-4 grid gap-4 lg:grid-cols-2">
+            <ConversionTable
+              title="By referrer"
+              description="Where the traffic came from, and how much of it signed up."
+              columnLabel="Referrer"
+              rows={data.breakdown.by_source}
+            />
+            <ConversionTable
+              title="By region"
+              description="Shipping a boxed game costs very different amounts to each of these."
+              columnLabel="Region"
+              rows={data.breakdown.by_region}
+            />
+          </div>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           {data?.metrics.map((metric) => (
             <Card key={metric.metric}>
@@ -92,6 +111,7 @@ export function AnalyticsPage() {
             </Card>
           ))}
         </div>
+        </>
       )}
     </>
   )

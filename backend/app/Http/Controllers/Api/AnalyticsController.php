@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Services\Analytics\ConversionBreakdown;
 use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -20,6 +21,13 @@ class AnalyticsController extends Controller
             ['metric' => 'sessions', 'label' => 'Sessions'],
             ['metric' => 'users', 'label' => 'Users'],
             ['metric' => 'pageviews', 'label' => 'Page views'],
+        ],
+        // Signups measured on the site itself, which is the only place a
+        // conversion rate can be worked out: Meta reports what its own
+        // ads produced, never what the traffic did once it arrived.
+        'conversion' => [
+            ['metric' => 'sessions', 'label' => 'Sessions'],
+            ['metric' => 'site_leads', 'label' => 'Signups'],
         ],
         'ads' => [
             ['metric' => 'spend', 'label' => 'Spend'],
@@ -49,6 +57,7 @@ class AnalyticsController extends Controller
         Project $project,
         MetricSeries $series,
         MetricCatalog $catalog,
+        ConversionBreakdown $breakdown,
     ): JsonResponse {
         $this->authorize('view', $project);
 
@@ -69,6 +78,14 @@ class AnalyticsController extends Controller
             'aggregation' => $catalog->aggregation($definition['metric']),
         ], self::CATEGORIES[$validated['category']]);
 
-        return response()->json(['category' => $validated['category'], 'metrics' => $metrics]);
+        return response()->json([
+            'category' => $validated['category'],
+            'metrics' => $metrics,
+            // Only where it would be read. Everywhere else it is a second
+            // query per page load answering a question nobody asked.
+            'breakdown' => $validated['category'] === 'conversion'
+                ? $breakdown->build($project, $days)
+                : null,
+        ]);
     }
 }

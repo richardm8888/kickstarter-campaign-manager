@@ -7,6 +7,7 @@ use App\Forecasting\BackerRates;
 use App\Forecasting\ForecastEngine;
 use App\Forecasting\ForecastInput;
 use App\Services\Analytics\AdTotals;
+use App\Services\Analytics\SegmentTotals;
 use App\Services\Analytics\AudienceSize;
 use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
@@ -22,7 +23,7 @@ class ForecastEngineTest extends TestCase
     {
         $series = new MetricSeries(new MetricCatalog);
 
-        return new ForecastEngine($series, new AudienceSize($series), new AdTotals);
+        return new ForecastEngine($series, new AudienceSize($series), new AdTotals(new SegmentTotals));
     }
 
     private function input(array $overrides = []): ForecastInput

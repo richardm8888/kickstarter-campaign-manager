@@ -48,6 +48,16 @@ class MetricCatalog
         'email_other_click_rate' => self::LEVEL,
         'ks_followers' => self::LEVEL,
 
+        // GA4's own signup count, and the same traffic and signups cut by
+        // referrer and region. The cuts carry their own names because a
+        // day collapses to one figure per metric — dimensioned copies of
+        // `sessions` would have segments overwriting each other.
+        'site_leads' => self::DAILY_TOTAL,
+        'sessions_by_source' => self::DAILY_TOTAL,
+        'leads_by_source' => self::DAILY_TOTAL,
+        'sessions_by_region' => self::DAILY_TOTAL,
+        'leads_by_region' => self::DAILY_TOTAL,
+
         'signups' => self::DELTA,
         'vip_upgrades' => self::DELTA,
 

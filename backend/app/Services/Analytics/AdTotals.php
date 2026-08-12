@@ -9,15 +9,15 @@ use App\Recommendations\AdType;
  * Totals for the per-ad metric series: per ad, per ad type, or whole
  * account.
  *
- * Meta restates each day on every sync, so the append-only store holds
- * several observations of the same (ad, metric, day). The latest one wins
- * before anything is summed — otherwise an hourly sync would multiply the
- * month's spend by the number of times it ran. This is the only place that
- * collapse is implemented; everything that reads per-ad data goes through
- * it.
+ * The collapse of repeated observations lives in SegmentTotals, which
+ * the analytics breakdowns share — so per-ad figures and per-region
+ * figures cannot drift into disagreeing about what a day was. What is
+ * here is the ad vocabulary on top of it.
  */
 class AdTotals
 {
+    public function __construct(private readonly SegmentTotals $segments) {}
+
     /**
      * One row per ad: its latest dimensions and the window's totals.
      *
@@ -26,41 +26,7 @@ class AdTotals
      */
     public function perAd(Project $project, array $metrics, int $days = 30): array
     {
-        $snapshots = $project->metricSnapshots()
-            ->where('source', 'meta')
-            ->whereIn('metric', $metrics)
-            ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
-            ->orderBy('recorded_at')
-            ->orderBy('id')
-            ->get();
-
-        $ads = [];
-
-        foreach ($snapshots as $snapshot) {
-            $adId = $snapshot->dimensions['ad_id'] ?? null;
-
-            if ($adId === null) {
-                continue;
-            }
-
-            // Names and classification can change between syncs; latest wins.
-            $ads[$adId]['dimensions'] = $snapshot->dimensions;
-
-            // Latest observation per (metric, day) wins.
-            $ads[$adId]['days'][$snapshot->recorded_at->toDateString()][$snapshot->metric] = (float) $snapshot->value;
-        }
-
-        return array_values(array_map(function (array $ad) use ($metrics) {
-            $totals = array_fill_keys($metrics, 0.0);
-
-            foreach ($ad['days'] as $day) {
-                foreach ($day as $metric => $value) {
-                    $totals[$metric] += $value;
-                }
-            }
-
-            return ['dimensions' => $ad['dimensions'], 'totals' => $totals];
-        }, $ads));
+        return $this->segments->get($project, $metrics, 'ad_id', $days, 'meta');
     }
 
     /**
