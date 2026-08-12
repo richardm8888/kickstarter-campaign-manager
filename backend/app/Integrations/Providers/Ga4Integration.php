@@ -115,9 +115,24 @@ class Ga4Integration extends BaseIntegration
             $this->leadsBy('countryId'),
         ]);
 
+        // A third call rather than a sixth request in the second: GA4 caps
+        // a batch at five reports, and silently returning fewer would look
+        // like a property with no traffic.
+        $kickstarter = $this->batch($token, $property, [[
+            'metrics' => [['name' => 'sessions']],
+            'dimensions' => [['name' => 'date'], ['name' => 'sessionSource']],
+            'dimensionFilter' => [
+                'filter' => [
+                    'fieldName' => 'hostName',
+                    'stringFilter' => ['matchType' => 'CONTAINS', 'value' => 'kickstarter.com'],
+                ],
+            ],
+        ]]);
+
         return [
             ...$this->traffic($totals[0] ?? []),
             ...$this->leads($totals[1] ?? []),
+            ...$this->kickstarterVisits($kickstarter[0] ?? []),
             ...$this->segmented(
                 $breakdowns[0] ?? [],
                 $breakdowns[1] ?? [],
@@ -131,6 +146,41 @@ class Ga4Integration extends BaseIntegration
                 fn (string $value) => Region::forCountry($value)->value,
             ),
         ];
+    }
+
+    /**
+     * Sessions on the creator's Kickstarter page, by referrer.
+     *
+     * Only arrives when the project's Google Analytics ID is set in
+     * Kickstarter's project settings — the tag fires there and reports
+     * into the same property, distinguishable by hostname.
+     *
+     * This is as far as the funnel can be measured. Kickstarter fires no
+     * event when someone follows, so we can count who reached the page
+     * from an email and never who then followed. Reporting the reachable
+     * half honestly beats inferring the whole from a ratio.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function kickstarterVisits(array $report): array
+    {
+        $rows = [];
+
+        foreach ($this->tally(
+            $report,
+            fn (string $value) => $value === '(direct)' || $value === '' ? 'Direct' : $value,
+        ) as $composite => $sessions) {
+            [$date, $source] = explode('|', $composite, 2);
+
+            $rows[] = [
+                'metric' => 'ks_page_sessions_by_source',
+                'value' => $sessions,
+                'recorded_at' => $date,
+                'dimensions' => ['source' => $source],
+            ];
+        }
+
+        return $rows;
     }
 
     /** All the traffic, so a conversion rate has a denominator. */

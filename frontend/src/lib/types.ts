@@ -244,6 +244,8 @@ export interface ConversionRow {
 export interface ConversionBreakdown {
   by_source: ConversionRow[]
   by_region: ConversionRow[]
+  /** Visits to the Kickstarter page itself. Follows are not measurable. */
+  kickstarter_arrivals: ConversionRow[]
 }
 
 export interface Insight {
