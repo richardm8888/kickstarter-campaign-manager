@@ -93,25 +93,6 @@ export interface EventSetup {
   }>
 }
 
-export interface PixelProbeCheck {
-  label: string
-  ok: boolean
-  rows: number
-  /** Meta's own error text, kept verbatim. */
-  detail: string | null
-  sample: string | null
-}
-
-export interface PixelProbe {
-  checked_at: string
-  pixels: Array<{
-    id: string
-    name: string
-    last_fired_at: string | null
-    checks: PixelProbeCheck[]
-  }>
-}
-
 export type PageType = 'landing' | 'kickstarter'
 
 export interface PageCheck {
@@ -265,6 +246,38 @@ export interface ConversionBreakdown {
   by_region: ConversionRow[]
   /** Visits to the Kickstarter page itself. Follows are not measurable. */
   kickstarter_arrivals: ConversionRow[]
+}
+
+export type SendStatus = 'measured' | 'shared' | 'no_baseline' | 'too_recent' | 'unknown'
+
+export interface FollowerLiftSend {
+  date: string
+  name: string
+  subject: string | null
+  recipients: number
+  followers_before: number | null
+  followers_after: number | null
+  gain: number | null
+  ad_follows: number | null
+  /** Followers an ordinary run of days would have brought anyway. */
+  baseline: number | null
+  /** Null whenever the data cannot support a number. */
+  lift: number | null
+  status: SendStatus
+  note: string | null
+}
+
+export interface FollowerLift {
+  window_days: number
+  lag_days: number
+  sends: FollowerLiftSend[]
+  summary: {
+    sends_measured: number
+    total_lift: number
+    per_send: number
+    per_1000_recipients: number | null
+  } | null
+  note: string | null
 }
 
 export interface Insight {

@@ -235,6 +235,7 @@ class MailerLiteIntegration extends BaseIntegration
             ->json('data', []);
 
         $byDate = [];
+        $rows = [];
 
         foreach ($campaigns as $campaign) {
             $sentAt = $campaign['finished_at'] ?? $campaign['scheduled_for'] ?? null;
@@ -250,9 +251,25 @@ class MailerLiteIntegration extends BaseIntegration
             $byDate[$date]['email_opens'] += (float) ($stats['opens_count'] ?? 0);
             $byDate[$date]['email_clicks'] += (float) ($stats['clicks_count'] ?? 0);
             $byDate[$date]['email_unsubscribes'] += (float) ($stats['unsubscribes_count'] ?? 0);
-        }
 
-        $rows = [];
+            // The send itself, kept as its own row.
+            //
+            // The aggregates above answer "how did email do that day".
+            // They cannot answer "what did this email do", because the
+            // campaign's name and identity are gone by the time they are
+            // written — and follower lift is measured per send, against
+            // the days either side of it.
+            $rows[] = [
+                'metric' => 'email_campaign_sent',
+                'value' => (float) ($stats['sent'] ?? $stats['sent_count'] ?? 0),
+                'recorded_at' => $date,
+                'dimensions' => [
+                    'campaign_id' => (string) ($campaign['id'] ?? $date),
+                    'campaign_name' => $campaign['name'] ?? 'Untitled campaign',
+                    'subject' => $campaign['emails'][0]['subject'] ?? null,
+                ],
+            ];
+        }
 
         foreach ($byDate as $date => $metrics) {
             foreach ($metrics as $metric => $value) {

@@ -33,6 +33,10 @@ class MetricCatalog
         'email_opens' => self::DAILY_TOTAL,
         'email_clicks' => self::DAILY_TOTAL,
         'email_unsubscribes' => self::DAILY_TOTAL,
+        // One row per campaign, carrying its identity in dimensions. Its
+        // value is the number sent; two campaigns on one day are two rows
+        // and must not collapse into whichever synced last.
+        'email_campaign_sent' => self::DAILY_TOTAL,
 
         'cpc' => self::LEVEL,
         'cpm' => self::LEVEL,

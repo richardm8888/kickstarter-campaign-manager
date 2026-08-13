@@ -3,6 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { getAnalytics, type AnalyticsCategory } from './api'
 import { ConversionTable } from './ConversionTable'
+import { FollowerLiftTable } from './FollowerLiftTable'
 import { MetricChart } from './MetricChart'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +27,12 @@ export function AnalyticsPage() {
   const [days, setDays] = useState<number>(30)
 
   const { data, isPending } = useQuery(getAnalytics(projectId, category, days))
+
+  // The email charts can be empty while the sends are the whole point:
+  // a pre-launch list has campaigns and followers before it has a
+  // history of opens. Without this the most useful thing on the tab
+  // sits behind an empty state saying there is nothing here.
+  const hasLift = (data?.follower_lift?.sends.length ?? 0) > 0
 
   return (
     <>
@@ -73,7 +80,7 @@ export function AnalyticsPage() {
             <Skeleton key={i} className="h-60" />
           ))}
         </div>
-      ) : data && data.metrics.every((m) => m.series.length === 0) ? (
+      ) : data && data.metrics.every((m) => m.series.length === 0) && !hasLift ? (
         <EmptyState
           title="No data in this category yet"
           body="Connect the matching integration and data will start flowing in within the hour."
@@ -103,6 +110,11 @@ export function AnalyticsPage() {
                 rows={data.breakdown.kickstarter_arrivals}
               />
             )}
+          </div>
+        )}
+        {data?.follower_lift && (
+          <div className="mb-4">
+            <FollowerLiftTable lift={data.follower_lift} />
           </div>
         )}
         <div className="grid gap-4 md:grid-cols-2">

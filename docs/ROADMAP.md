@@ -283,6 +283,35 @@ Consequences, and the reason the wording matters:
   following means the page is not persuading — and says nothing at all
   when the tag is absent.
 
+**Meta's pixel totals were the other way in, and they are closed.** A
+follow that came from an email fires the pixel on the Kickstarter page but
+was never an ad click, so Meta attributes it to nothing; the total minus
+the attributed ones would have been the follows nobody paid for. Asked
+against the live API with the creator's own token, all three ways of
+reading those totals answered `(#100) Permission Denied`:
+
+    /stats?aggregation=event    (#100) Permission Denied
+    /stats?aggregation=host     (#100) Permission Denied
+    /stats?aggregation=url      (#100) Permission Denied
+
+Whether that is a missing scope or a withdrawn edge is not settled — the
+error is the same either way, and `/debug_token` would distinguish them if
+it ever seems worth chasing. The probe that asked has been removed rather
+than left on a page as a button nobody should press again.
+
+**So the measurement is follower lift around each send** (`FollowerLift`).
+Followers gained in the three days from a send, minus ad-bought follows in
+that window, minus what a quiet day brings for this project — the median of
+recent non-send days, because one burst would drag a mean far enough to
+make every later send look like a failure.
+
+It is an inference and the UI calls it one: *"associated with"*, never *"a
+conversion rate"*. It refuses to produce a number rather than guess when
+the window has not finished, when there are fewer than five quiet days to
+form a baseline, or when two sends overlap — and overlap is judged on the
+windows, not the send dates, because the second of a close pair sits in the
+first one's wake and is contaminated just as much.
+
 Two cautions learnt the hard way here, both worth keeping:
 
 **A truncated search is not evidence of absence.** `kickstarter:inspect`
