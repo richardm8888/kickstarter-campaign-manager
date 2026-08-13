@@ -24,20 +24,20 @@ class MetricSeries
     /** Latest observed value for a metric, or null when never recorded. */
     public function latest(Project $project, string $metric, ?string $source = null): ?float
     {
-        $snapshot = $this->cache
+        $value = $this->cache
             ->remember(
                 $this->key('latest', $project, $metric, $source),
-                fn () => $project->metricSnapshots()
+                fn () => collect($project->metricSnapshots()
                     ->where('metric', $metric)
                     ->when($source, fn ($q) => $q->where('source', $source))
                     ->orderByDesc('recorded_at')
                     ->orderByDesc('id')
                     ->limit(1)
-                    ->get(),
+                    ->pluck('value')),
             )
             ->first();
 
-        return $snapshot?->value;
+        return $value === null ? null : (float) $value;
     }
 
     /**
@@ -64,26 +64,16 @@ class MetricSeries
         int $days = 30,
         ?string $source = null,
     ): Collection {
-        $snapshots = $this->cache->remember(
+        return $this->cache->remember(
             $this->key('daily', $project, $metric, $source, (string) $days),
-            fn () => $project->metricSnapshots()
-                ->where('metric', $metric)
-                ->when($source, fn ($q) => $q->where('source', $source))
-                ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
-                ->orderBy('recorded_at')
-                ->orderBy('id')
-                ->get(),
+            fn () => $this->collapse(
+                $project->metricSnapshots()
+                    ->where('metric', $metric)
+                    ->when($source, fn ($q) => $q->where('source', $source))
+                    ->where('recorded_at', '>=', now()->subDays($days)->startOfDay()),
+                $this->catalog->isDelta($metric),
+            ),
         );
-
-        $isDelta = $this->catalog->isDelta($metric);
-
-        return $snapshots
-            ->groupBy(fn ($s) => $s->recorded_at->toDateString())
-            ->map(fn (Collection $day, string $date) => [
-                'date' => $date,
-                'value' => $isDelta ? (float) $day->sum('value') : (float) $day->last()->value,
-            ])
-            ->values();
     }
 
     /**
@@ -105,27 +95,63 @@ class MetricSeries
     /** Average of the daily figures in a window, ignoring duplicate reports. */
     private function windowAverage(Project $project, string $metric, Carbon $from, Carbon $to): ?float
     {
-        $snapshots = $this->cache->remember(
+        $daily = $this->cache->remember(
             $this->key('window', $project, $metric, null, $from->toDateTimeString(), $to->toDateTimeString()),
-            fn () => $project->metricSnapshots()
-                ->where('metric', $metric)
-                ->whereBetween('recorded_at', [$from, $to])
-                ->orderBy('recorded_at')
-                ->orderBy('id')
-                ->get(),
+            fn () => $this->collapse(
+                $project->metricSnapshots()
+                    ->where('metric', $metric)
+                    ->whereBetween('recorded_at', [$from, $to]),
+                $this->catalog->isDelta($metric),
+            ),
         );
 
-        if ($snapshots->isEmpty()) {
+        if ($daily->isEmpty()) {
             return null;
         }
 
-        $isDelta = $this->catalog->isDelta($metric);
+        return (float) $daily->avg('value');
+    }
 
-        $daily = $snapshots
-            ->groupBy(fn ($s) => $s->recorded_at->toDateString())
-            ->map(fn (Collection $day) => $isDelta ? (float) $day->sum('value') : (float) $day->last()->value);
+    /**
+     * One figure per day, without ever holding the rows.
+     *
+     * This used to fetch the window as Eloquent models and group them in
+     * memory. At production volume that is a model per snapshot — the
+     * dashboard alone reached 118 MB against the container's 128 MB
+     * limit at 34,000 rows, and died outright at 100,000. It was a fatal
+     * error, so it arrived as a 500 with nothing in the response, and no
+     * test saw it because no test has that much data.
+     *
+     * Streaming rows and folding them as they arrive makes the memory a
+     * function of the number of days, which is bounded, rather than the
+     * number of observations, which is not. Ordering by id within a day
+     * is what makes "last one wins" mean the newest.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\MetricSnapshot>  $query
+     * @return Collection<int, array{date: string, value: float}>
+     */
+    private function collapse($query, bool $isDelta): Collection
+    {
+        $byDay = [];
 
-        return (float) $daily->avg();
+        $rows = $query->orderBy('recorded_at')
+            ->orderBy('id')
+            ->toBase()
+            ->select('recorded_at', 'value')
+            ->cursor();
+
+        foreach ($rows as $row) {
+            // Timestamps are stored and read in UTC, so the date is the
+            // first ten characters whichever driver returned them.
+            $date = substr((string) $row->recorded_at, 0, 10);
+            $value = (float) $row->value;
+
+            $byDay[$date] = $isDelta ? ($byDay[$date] ?? 0.0) + $value : $value;
+        }
+
+        return collect($byDay)
+            ->map(fn (float $value, string $date) => ['date' => $date, 'value' => $value])
+            ->values();
     }
 
     /**

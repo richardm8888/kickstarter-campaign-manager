@@ -4,6 +4,7 @@ RUN apk add --no-cache postgresql-dev icu-dev \
     && docker-php-ext-install pdo_pgsql intl opcache
 
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 
 # Multi-worker built-in server; suitable behind a reverse proxy for
 # small-instance deployments.

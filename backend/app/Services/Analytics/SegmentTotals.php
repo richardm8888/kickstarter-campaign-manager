@@ -35,28 +35,41 @@ class SegmentTotals
         int $days = 30,
         ?string $source = null,
     ): array {
+        // Streamed, not fetched. This is several metrics across a window
+        // of per-ad rows — the widest read in the application — and
+        // hydrating it into models is what exhausted the container's
+        // memory limit and turned the dashboard into a 500. Folding rows
+        // as they arrive keeps the cost proportional to the number of
+        // segments and days rather than the number of observations.
         $snapshots = $project->metricSnapshots()
             ->when($source, fn ($query) => $query->where('source', $source))
             ->whereIn('metric', $metrics)
             ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
             ->orderBy('recorded_at')
             ->orderBy('id')
-            ->get();
+            ->toBase()
+            ->select('recorded_at', 'metric', 'value', 'dimensions')
+            ->cursor();
 
         $segments = [];
 
         foreach ($snapshots as $snapshot) {
-            $value = $snapshot->dimensions[$key] ?? null;
+            // The query builder does not apply the model's casts.
+            $dimensions = $snapshot->dimensions === null
+                ? null
+                : json_decode((string) $snapshot->dimensions, true);
+
+            $value = is_array($dimensions) ? ($dimensions[$key] ?? null) : null;
 
             if ($value === null) {
                 continue;
             }
 
             // Labels and classification can change between syncs; latest wins.
-            $segments[$value]['dimensions'] = $snapshot->dimensions;
+            $segments[$value]['dimensions'] = $dimensions;
 
             // Latest observation per (metric, day) wins.
-            $segments[$value]['days'][$snapshot->recorded_at->toDateString()][$snapshot->metric]
+            $segments[$value]['days'][substr((string) $snapshot->recorded_at, 0, 10)][$snapshot->metric]
                 = (float) $snapshot->value;
         }
 
