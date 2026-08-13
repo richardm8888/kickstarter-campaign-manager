@@ -18,6 +18,7 @@ RUN apk add --no-cache postgresql-dev icu-dev \
 # Installed but inert without this: `artisan serve` is the CLI SAPI,
 # where opcache is off by default.
 COPY backend/docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY backend/docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 
 ENV PHP_CLI_SERVER_WORKERS=8
 
