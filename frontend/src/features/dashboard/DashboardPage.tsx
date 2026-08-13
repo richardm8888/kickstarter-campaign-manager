@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { money, number, percent } from '@/lib/format'
+import { ApiError } from '@/lib/api'
 
 /** Days-to-launch chip, or a prompt to set a date when none exists. */
 function LaunchCountdown({ launchDate, projectId }: { launchDate: string | null; projectId: string }) {
@@ -46,7 +47,7 @@ function LaunchCountdown({ launchDate, projectId }: { launchDate: string | null;
 
 export function DashboardPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }
-  const { data, isPending, isError } = useQuery(getDashboard(projectId))
+  const { data, isPending, isError, error } = useQuery(getDashboard(projectId))
   const { data: project } = useQuery(getProject(projectId))
 
   if (isPending) {
@@ -60,7 +61,16 @@ export function DashboardPage() {
   }
 
   if (isError || !data) {
-    return <p role="alert" className="text-sm text-destructive">Couldn't load the dashboard. Try refreshing.</p>
+    // Say what actually happened. "Try refreshing" is useless advice
+    // against a proxy that cannot reach the app, and it hid exactly
+    // that for an evening.
+    const reason = error instanceof ApiError ? error.message : 'Try refreshing.'
+
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        Couldn't load the dashboard. {reason}
+      </p>
+    )
   }
 
   const { setup, cards, funnel, currency } = data

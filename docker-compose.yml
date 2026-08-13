@@ -92,5 +92,11 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
+    # `depends_on: [backend]` only waits for the container to start, not
+    # to be usable. nginx came up six seconds before the backend was
+    # healthy and resolved its address against a container that was still
+    # booting. Waiting for healthy means the name resolves to something
+    # that answers.
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy

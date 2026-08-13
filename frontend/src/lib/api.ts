@@ -22,6 +22,26 @@ export class ApiError extends Error {
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 
+/**
+ * What to say when the response carried no message of its own.
+ *
+ * 502 and 504 do not come from the app at all — they are the proxy
+ * saying it could not reach it, which is a different problem with a
+ * different fix, and worth naming rather than flattening into
+ * "something went wrong".
+ */
+function serverSideMessage(status: number): string {
+  if (status === 502 || status === 503 || status === 504) {
+    return `The app is not reachable right now (HTTP ${status}). It is usually a deploy still settling — try again in a minute.`
+  }
+
+  if (status >= 500) {
+    return `The server hit an error (HTTP ${status}).`
+  }
+
+  return `Something went wrong (HTTP ${status}).`
+}
+
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   const token = getToken()
@@ -44,7 +64,11 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      (data as { message?: string } | null)?.message ?? 'Something went wrong.',
+      // Falling back to a bare "something went wrong" hid a completely
+      // unreachable API behind the same sentence as a validation error.
+      // The status is the one thing always known, and it is the
+      // difference between "the app threw" and "nothing answered".
+      (data as { message?: string } | null)?.message ?? serverSideMessage(response.status),
       (data as { errors?: Record<string, string[]> } | null)?.errors ?? {},
     )
   }

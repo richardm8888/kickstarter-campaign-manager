@@ -44,20 +44,42 @@ set_tag() {
 }
 
 health_ok() {
-    # Two independent signals, because either alone lies. The backend
-    # image already defines a healthcheck, so ask Docker rather than
-    # inventing a second definition of healthy — but a healthy backend
-    # behind a broken frontend is still a dead site, so also fetch the
-    # page a visitor would.
-    local id port
+    # Three independent signals, because each alone lies.
+    #
+    # The backend image already defines a healthcheck, so ask Docker
+    # rather than inventing a second definition of healthy. But that is
+    # measured from inside the backend container, so it says nothing
+    # about whether anything can reach it. Fetching the page a visitor
+    # would proves the frontend serves files — and files come off
+    # nginx's own disk, so that says nothing about the API either.
+    #
+    # Both of those passed while every API call was failing, which is
+    # how a completely unusable site was deployed and reported healthy.
+    # The third signal is the one that would have caught it.
+    local id port status
     id="$(docker compose ps -q backend 2>/dev/null || true)"
 
     [ -n "$id" ] || return 1
     [ "$(docker inspect -f '{{.State.Health.Status}}' "$id" 2>/dev/null)" = 'healthy' ] || return 1
 
     port="$(grep -E '^HTTP_PORT=' .env 2>/dev/null | cut -d= -f2- || true)"
+    port="${port:-8080}"
 
-    curl -fsS --max-time 5 -o /dev/null "http://127.0.0.1:${port:-8080}/"
+    curl -fsS --max-time 5 -o /dev/null "http://127.0.0.1:${port}/" || return 1
+
+    # The API, through the frontend, by the route a browser uses.
+    #
+    # 401 is the expected answer and a perfectly good one: it can only
+    # come from Laravel, so it proves the whole path resolves. What is
+    # being ruled out is 502 and 504 — nginx holding an address nothing
+    # answers on — and 000, meaning no reply at all.
+    status="$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' \
+        -H 'Accept: application/json' "http://127.0.0.1:${port}/api/projects" || echo 000)"
+
+    case "$status" in
+        000|5*) return 1 ;;
+        *) return 0 ;;
+    esac
 }
 
 wait_for_health() {
