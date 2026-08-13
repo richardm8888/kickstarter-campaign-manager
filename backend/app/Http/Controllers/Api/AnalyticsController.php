@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Services\Analytics\ConversionBreakdown;
+use App\Services\Analytics\FollowerLift;
 use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -58,6 +59,7 @@ class AnalyticsController extends Controller
         MetricSeries $series,
         MetricCatalog $catalog,
         ConversionBreakdown $breakdown,
+        FollowerLift $lift,
     ): JsonResponse {
         $this->authorize('view', $project);
 
@@ -85,6 +87,12 @@ class AnalyticsController extends Controller
             // query per page load answering a question nobody asked.
             'breakdown' => $validated['category'] === 'conversion'
                 ? $breakdown->build($project, $days)
+                : null,
+            // Sits with email because it is a property of the sends, and
+            // it is the only answer available: Kickstarter fires no
+            // follow event and Meta refuses the pixel totals.
+            'follower_lift' => $validated['category'] === 'email'
+                ? $lift->build($project, $days)
                 : null,
         ]);
     }

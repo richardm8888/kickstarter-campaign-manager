@@ -92,10 +92,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/ads', [AdsController::class, 'index']);
         Route::get('/ads/events', [AdsController::class, 'events']);
-        // Throttled: each call is several requests against Meta's API,
-        // and the answer changes about as often as Meta ships a version.
-        Route::post('/ads/pixel-probe', [AdsController::class, 'pixelProbe'])
-            ->middleware('throttle:6,1');
 
         Route::get('/page-analyses', [PageAnalysisController::class, 'index']);
         Route::post('/page-analyses', [PageAnalysisController::class, 'store']);

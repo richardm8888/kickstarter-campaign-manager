@@ -6,7 +6,6 @@ import { getProject } from '@/features/projects/api'
 import { SetupCard } from './SetupCard'
 import { TodayCard } from '@/features/daily/TodayCard'
 import { StatCard } from './StatCard'
-import { PixelProbe } from '@/features/ads/PixelProbe'
 import { Funnel } from './Funnel'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
@@ -81,15 +80,6 @@ export function DashboardPage() {
       <PageHeader title="Dashboard" subtitle="The state of your launch at a glance">
         <LaunchCountdown launchDate={project?.project.launch_date ?? null} projectId={projectId} />
       </PageHeader>
-
-      {/* First, deliberately. This started at the foot of the Ads page,
-          which on a phone is below every ad and the turned-off
-          accordion; moved to sit under the daily card it was still more
-          than a screen down. It is a one-off question — once Meta has
-          answered it, this belongs back with the ad diagnostics. */}
-      <div className="mb-6">
-        <PixelProbe projectId={projectId} />
-      </div>
 
       <SetupCard setup={setup} projectId={projectId} />
 
