@@ -4,9 +4,16 @@ namespace App\Integrations\Providers;
 
 use App\Integrations\BaseIntegration;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class MailerLiteIntegration extends BaseIntegration
 {
+    /**
+     * How many recent campaigns to fetch link detail for each sync.
+     * One request each, so this is the bound on the extra traffic.
+     */
+    private const LINK_DETAIL_CAMPAIGNS = 10;
+
     public function provider(): string
     {
         return 'mailerlite';
@@ -277,7 +284,130 @@ class MailerLiteIntegration extends BaseIntegration
             }
         }
 
+        return [...$rows, ...$this->linkClicks($credentials, $campaigns)];
+    }
+
+    /**
+     * Clicks on each link inside a campaign.
+     *
+     * The campaign list carries a total; which link earned it lives on the
+     * campaign itself, so this fetches the recent ones individually.
+     *
+     * **The shape of that per-link data is not verified against a live
+     * account.** MailerLite's docs were unreachable from where this was
+     * written and there was no key to probe with, so `linksFrom` reads a
+     * few plausible spellings rather than one asserted from memory —
+     * which is how a previous guess in this project ended up measuring an
+     * event nobody had installed. When none of them match, it says so in
+     * the log with the keys that were actually there, so the real shape
+     * can be read off one sync rather than guessed at again.
+     *
+     * @param  list<array<string, mixed>>  $campaigns
+     * @return list<array<string, mixed>>
+     */
+    private function linkClicks(array $credentials, array $campaigns): array
+    {
+        $recent = array_slice(array_filter(
+            $campaigns,
+            fn (array $campaign) => filled($campaign['finished_at'] ?? $campaign['scheduled_for'] ?? null),
+        ), 0, self::LINK_DETAIL_CAMPAIGNS);
+
+        $rows = [];
+        $anyFound = false;
+
+        foreach ($recent as $campaign) {
+            $id = (string) ($campaign['id'] ?? '');
+
+            if ($id === '') {
+                continue;
+            }
+
+            $detail = Http::withToken($credentials['api_key'])
+                ->acceptJson()
+                ->get("https://connect.mailerlite.com/api/campaigns/{$id}")
+                ->json('data', []);
+
+            $links = $this->linksFrom(is_array($detail) ? $detail : []);
+
+            if ($links === []) {
+                continue;
+            }
+
+            $anyFound = true;
+            $date = substr((string) ($campaign['finished_at'] ?? $campaign['scheduled_for']), 0, 10);
+
+            foreach ($links as $url => $clicks) {
+                $rows[] = [
+                    'metric' => 'email_link_clicks',
+                    'value' => (float) $clicks,
+                    'recorded_at' => $date,
+                    'dimensions' => [
+                        'url' => $url,
+                        'campaign_id' => $id,
+                        'campaign_name' => $campaign['name'] ?? 'Untitled campaign',
+                    ],
+                ];
+            }
+        }
+
+        if (! $anyFound && $recent !== []) {
+            Log::info('MailerLite returned no per-link click data in a recognised shape', [
+                'project_id' => $this->project->id,
+                // The keys that were there, so the shape can be pinned
+                // from one log line instead of another round of guessing.
+                'campaign_keys' => array_keys($recent[0]),
+                'stats_keys' => array_keys($recent[0]['stats'] ?? []),
+            ]);
+        }
+
         return $rows;
+    }
+
+    /**
+     * Per-link clicks out of a campaign payload, whatever it calls them.
+     *
+     * Candidate spellings, not a documented contract — see linkClicks.
+     *
+     * @param  array<string, mixed>  $campaign
+     * @return array<string, float> clicks keyed by URL
+     */
+    private function linksFrom(array $campaign): array
+    {
+        $candidates = [
+            $campaign['stats']['clicks_by_link'] ?? null,
+            $campaign['clicks_by_link'] ?? null,
+            $campaign['stats']['links'] ?? null,
+            $campaign['links'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (! is_array($candidate) || $candidate === []) {
+                continue;
+            }
+
+            $links = [];
+
+            foreach ($candidate as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+
+                $url = $entry['url'] ?? $entry['link'] ?? null;
+                $clicks = $entry['count'] ?? $entry['clicks'] ?? $entry['clicks_count'] ?? $entry['total'] ?? null;
+
+                if (filled($url) && $clicks !== null) {
+                    // Summed, because the same URL can appear more than
+                    // once when an email links to it from several places.
+                    $links[(string) $url] = ($links[(string) $url] ?? 0) + (float) $clicks;
+                }
+            }
+
+            if ($links !== []) {
+                return $links;
+            }
+        }
+
+        return [];
     }
 
     /**

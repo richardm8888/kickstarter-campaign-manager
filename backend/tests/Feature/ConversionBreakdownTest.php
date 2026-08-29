@@ -161,11 +161,31 @@ class ConversionBreakdownTest extends TestCase
                     ]],
                 ]])
                 // Sessions on the Kickstarter page itself, which arrive
-                // only when its Google Analytics ID points here.
+                // only when its Google Analytics ID points here: by
+                // source, then by campaign.
                 ->push(['reports' => [
                     ['rows' => [
                         ['dimensionValues' => [['value' => '20260801'], ['value' => 'mailerlite']], 'metricValues' => [['value' => '31']]],
                         ['dimensionValues' => [['value' => '20260801'], ['value' => 'fb']], 'metricValues' => [['value' => '64']]],
+                    ]],
+                    ['rows' => [
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'one-month-to-go']], 'metricValues' => [['value' => '22']]],
+                    ]],
+                ]])
+                // utm_campaign then utm_medium, sessions and signups each.
+                ->push(['reports' => [
+                    ['rows' => [
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'one-month-to-go']], 'metricValues' => [['value' => '90']]],
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => '(not set)']], 'metricValues' => [['value' => '15']]],
+                    ]],
+                    ['rows' => [
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'one-month-to-go']], 'metricValues' => [['value' => '9']]],
+                    ]],
+                    ['rows' => [
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'email']], 'metricValues' => [['value' => '90']]],
+                    ]],
+                    ['rows' => [
+                        ['dimensionValues' => [['value' => '20260801'], ['value' => 'email']], 'metricValues' => [['value' => '9']]],
                     ]],
                 ]]),
         ]);

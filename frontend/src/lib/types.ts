@@ -241,11 +241,23 @@ export interface ConversionRow {
   conversion: number | null
 }
 
+export interface EmailLinkRow {
+  url: string
+  campaign: string
+  clicks: number
+}
+
 export interface ConversionBreakdown {
+  /** utm_source where a link carried one, the referring domain otherwise. */
   by_source: ConversionRow[]
+  by_campaign: ConversionRow[]
+  by_medium: ConversionRow[]
   by_region: ConversionRow[]
   /** Visits to the Kickstarter page itself. Follows are not measurable. */
   kickstarter_arrivals: ConversionRow[]
+  kickstarter_arrivals_by_campaign: ConversionRow[]
+  /** Clicks counted by MailerLite, inside the email itself. */
+  email_links: EmailLinkRow[]
 }
 
 export type SendStatus = 'measured' | 'shared' | 'no_baseline' | 'too_recent' | 'unknown'

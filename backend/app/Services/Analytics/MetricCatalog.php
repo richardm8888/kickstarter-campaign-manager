@@ -63,6 +63,15 @@ class MetricCatalog
         // Visits to the Kickstarter page itself, when its Google Analytics
         // ID points at the same property.
         'ks_page_sessions_by_source' => self::DAILY_TOTAL,
+        'ks_page_sessions_by_campaign' => self::DAILY_TOTAL,
+        // UTM detail. sessionSource alone collapses every email into
+        // one row; campaign and medium are what separate them.
+        'sessions_by_campaign' => self::DAILY_TOTAL,
+        'leads_by_campaign' => self::DAILY_TOTAL,
+        'sessions_by_medium' => self::DAILY_TOTAL,
+        'leads_by_medium' => self::DAILY_TOTAL,
+        // Clicks on a link inside an email, from MailerLite itself.
+        'email_link_clicks' => self::DAILY_TOTAL,
         'leads_by_region' => self::DAILY_TOTAL,
 
         'signups' => self::DELTA,

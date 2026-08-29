@@ -118,21 +118,30 @@ class Ga4Integration extends BaseIntegration
         // A third call rather than a sixth request in the second: GA4 caps
         // a batch at five reports, and silently returning fewer would look
         // like a property with no traffic.
-        $kickstarter = $this->batch($token, $property, [[
-            'metrics' => [['name' => 'sessions']],
-            'dimensions' => [['name' => 'date'], ['name' => 'sessionSource']],
-            'dimensionFilter' => [
-                'filter' => [
-                    'fieldName' => 'hostName',
-                    'stringFilter' => ['matchType' => 'CONTAINS', 'value' => 'kickstarter.com'],
-                ],
-            ],
-        ]]);
+        $kickstarter = $this->batch($token, $property, [
+            $this->kickstarterSessionsBy('sessionSource'),
+            // Which campaign sent them, not merely which channel. This is
+            // the one that pairs with the follower-lift table: both are
+            // then per campaign, so "the email that moved followers" and
+            // "the email that got people to the page" are the same row.
+            $this->kickstarterSessionsBy('sessionCampaignName'),
+        ]);
+
+        // UTM detail. sessionSource alone collapses every email into one
+        // row, so a list of five campaigns reads as a single traffic
+        // source and there is no way to tell which of them worked.
+        $utm = $this->batch($token, $property, [
+            $this->sessionsBy('sessionCampaignName'),
+            $this->leadsBy('sessionCampaignName'),
+            $this->sessionsBy('sessionMedium'),
+            $this->leadsBy('sessionMedium'),
+        ]);
 
         return [
             ...$this->traffic($totals[0] ?? []),
             ...$this->leads($totals[1] ?? []),
-            ...$this->kickstarterVisits($kickstarter[0] ?? []),
+            ...$this->kickstarterVisits($kickstarter[0] ?? [], 'source'),
+            ...$this->kickstarterVisits($kickstarter[1] ?? [], 'campaign'),
             ...$this->segmented(
                 $breakdowns[0] ?? [],
                 $breakdowns[1] ?? [],
@@ -145,6 +154,8 @@ class Ga4Integration extends BaseIntegration
                 'region',
                 fn (string $value) => Region::forCountry($value)->value,
             ),
+            ...$this->segmented($utm[0] ?? [], $utm[1] ?? [], 'campaign', $this->utmLabel(...)),
+            ...$this->segmented($utm[2] ?? [], $utm[3] ?? [], 'medium', $this->utmLabel(...)),
         ];
     }
 
@@ -162,25 +173,58 @@ class Ga4Integration extends BaseIntegration
      *
      * @return list<array<string, mixed>>
      */
-    private function kickstarterVisits(array $report): array
+    private function kickstarterVisits(array $report, string $key): array
     {
         $rows = [];
 
-        foreach ($this->tally(
-            $report,
-            fn (string $value) => $value === '(direct)' || $value === '' ? 'Direct' : $value,
-        ) as $composite => $sessions) {
-            [$date, $source] = explode('|', $composite, 2);
+        foreach ($this->tally($report, $this->utmLabel(...)) as $composite => $sessions) {
+            [$date, $segment] = explode('|', $composite, 2);
 
             $rows[] = [
-                'metric' => 'ks_page_sessions_by_source',
+                'metric' => "ks_page_sessions_by_{$key}",
                 'value' => $sessions,
                 'recorded_at' => $date,
-                'dimensions' => ['source' => $source],
+                'dimensions' => [$key => $segment],
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * What to call a UTM value that is not there.
+     *
+     * GA4 reports untagged traffic as `(direct)`, `(not set)` or an empty
+     * string depending on the dimension, and three spellings of "nothing"
+     * in one table reads as three different sources.
+     */
+    private function utmLabel(string $value): string
+    {
+        return match ($value) {
+            '', '(direct)', '(not set)', '(none)' => 'Untagged',
+            default => $value,
+        };
+    }
+
+    /**
+     * Sessions on the creator's Kickstarter page, cut by one dimension.
+     *
+     * The hostname filter is what separates the Kickstarter page from the
+     * creator's own site: both report into the same property when the
+     * project's Google Analytics ID is set in Kickstarter's settings.
+     */
+    private function kickstarterSessionsBy(string $dimension): array
+    {
+        return [
+            'metrics' => [['name' => 'sessions']],
+            'dimensions' => [['name' => 'date'], ['name' => $dimension]],
+            'dimensionFilter' => [
+                'filter' => [
+                    'fieldName' => 'hostName',
+                    'stringFilter' => ['matchType' => 'CONTAINS', 'value' => 'kickstarter.com'],
+                ],
+            ],
+        ];
     }
 
     /** All the traffic, so a conversion rate has a denominator. */
