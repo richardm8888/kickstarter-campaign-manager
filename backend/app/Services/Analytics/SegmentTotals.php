@@ -28,6 +28,58 @@ class SegmentTotals
      * @param  list<string>  $metrics
      * @return list<array{dimensions: array<string, mixed>, totals: array<string, float>}>
      */
+    /**
+     * The most recent figure per segment, rather than a window's total.
+     *
+     * For a running total — an automation that has sent 227 emails since
+     * June — summing days would multiply it by the number of days the
+     * sync ran. The last observation is the whole answer.
+     *
+     * @param  list<string>  $metrics
+     * @return list<array{dimensions: array<string, mixed>, totals: array<string, float>}>
+     */
+    public function latest(
+        Project $project,
+        array $metrics,
+        string $key,
+        int $days = 30,
+        ?string $source = null,
+    ): array {
+        $snapshots = $project->metricSnapshots()
+            ->when($source, fn ($query) => $query->where('source', $source))
+            ->whereIn('metric', $metrics)
+            ->where('recorded_at', '>=', now()->subDays($days)->startOfDay())
+            ->orderBy('recorded_at')
+            ->orderBy('id')
+            ->toBase()
+            ->select('metric', 'value', 'dimensions')
+            ->cursor();
+
+        $segments = [];
+
+        foreach ($snapshots as $snapshot) {
+            $dimensions = $snapshot->dimensions === null
+                ? null
+                : json_decode((string) $snapshot->dimensions, true);
+
+            $value = is_array($dimensions) ? ($dimensions[$key] ?? null) : null;
+
+            if ($value === null) {
+                continue;
+            }
+
+            $segments[$value]['dimensions'] = $dimensions;
+            $segments[$value]['totals'][$snapshot->metric] = (float) $snapshot->value;
+        }
+
+        // Every requested metric present, so a caller never has to guard
+        // against a key that simply had no observation.
+        return array_values(array_map(fn (array $segment) => [
+            'dimensions' => $segment['dimensions'],
+            'totals' => $segment['totals'] + array_fill_keys($metrics, 0.0),
+        ], $segments));
+    }
+
     public function get(
         Project $project,
         array $metrics,

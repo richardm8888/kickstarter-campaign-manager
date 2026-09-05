@@ -5,6 +5,7 @@ import { getAnalytics, type AnalyticsCategory } from './api'
 import { ConversionTable } from './ConversionTable'
 import { FollowerLiftTable } from './FollowerLiftTable'
 import { EmailLinksTable } from './EmailLinksTable'
+import { AutomationsTable } from './AutomationsTable'
 import { MetricChart } from './MetricChart'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,7 +34,9 @@ export function AnalyticsPage() {
   // a pre-launch list has campaigns and followers before it has a
   // history of opens. Without this the most useful thing on the tab
   // sits behind an empty state saying there is nothing here.
-  const hasLift = (data?.follower_lift?.sends.length ?? 0) > 0
+  const hasLift =
+    (data?.follower_lift?.sends.length ?? 0) > 0 ||
+    (data?.email_performance?.automations.length ?? 0) > 0
 
   // Same reasoning for the breakdown tables. The headline charts are
   // sessions and signups; the tables underneath are the reason to be on
@@ -150,6 +153,11 @@ export function AnalyticsPage() {
               />
             )}
             <EmailLinksTable rows={data.breakdown.email_links} />
+          </div>
+        )}
+        {data?.email_performance && (
+          <div className="mb-4">
+            <AutomationsTable performance={data.email_performance} />
           </div>
         )}
         {data?.follower_lift && (

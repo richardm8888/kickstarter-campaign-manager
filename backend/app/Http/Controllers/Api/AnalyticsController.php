@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Services\Analytics\ConversionBreakdown;
+use App\Services\Analytics\EmailPerformance;
 use App\Services\Analytics\FollowerLift;
 use App\Services\Analytics\MetricCatalog;
 use App\Services\Analytics\MetricSeries;
@@ -60,6 +61,7 @@ class AnalyticsController extends Controller
         MetricCatalog $catalog,
         ConversionBreakdown $breakdown,
         FollowerLift $lift,
+        EmailPerformance $email,
     ): JsonResponse {
         $this->authorize('view', $project);
 
@@ -93,6 +95,11 @@ class AnalyticsController extends Controller
             // follow event and Meta refuses the pixel totals.
             'follower_lift' => $validated['category'] === 'email'
                 ? $lift->build($project, $days)
+                : null,
+            // Automations sit with the broadcasts they are usually
+            // compared against, and were until now missing entirely.
+            'email_performance' => $validated['category'] === 'email'
+                ? $email->build($project, $days)
                 : null,
         ]);
     }

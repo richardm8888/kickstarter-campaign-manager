@@ -90,31 +90,58 @@ class UtmBreakdownTest extends TestCase
         $this->assertNull($rows[0]['conversion']);
     }
 
-    public function test_link_clicks_are_read_from_mailerlite(): void
+    /**
+     * The real shape, read off the live API rather than recalled.
+     *
+     *   GET /campaigns/{id}/links -> data[] of
+     *     { id, url, label, safe_url, clicks_count, unique_clicks_count }
+     *
+     * A previous version looked under `stats` on the campaign for four
+     * guessed spellings, all wrong, and shipped an empty table.
+     */
+    private function fakeCampaignWithLinks(array $links): void
     {
-        $project = Project::factory()->create();
+        Http::fake([
+            'connect.mailerlite.com/api/campaigns/*/links' => Http::response(['data' => $links]),
+            'connect.mailerlite.com/api/campaigns*' => Http::response(['data' => [[
+                'id' => 'c1',
+                'name' => 'Kickstarter pre-campaign launch',
+                'finished_at' => now()->subDays(3)->toDateTimeString(),
+                'stats' => ['sent' => 60, 'opens_count' => 23, 'clicks_count' => 14],
+            ]]]),
+            'connect.mailerlite.com/api/automations*' => Http::response(['data' => []]),
+            'connect.mailerlite.com/api/subscribers*' => Http::response(['data' => [], 'total' => 60]),
+            'connect.mailerlite.com/api/groups*' => Http::response(['data' => []]),
+        ]);
+    }
+
+    private function connectMailerLite(Project $project): void
+    {
         Integration::factory()->for($project)->create([
             'provider' => 'mailerlite',
             'credentials' => ['api_key' => 'ml-key'],
             'settings' => [],
         ]);
+    }
 
-        Http::fake([
-            'connect.mailerlite.com/api/campaigns/c1' => Http::response(['data' => [
-                'id' => 'c1',
-                'stats' => ['clicks_by_link' => [
-                    ['url' => 'https://kickstarter.com/projects/x', 'count' => 41],
-                    ['url' => 'https://totallyfootballgame.co.uk', 'count' => 12],
-                ]],
-            ]]),
-            'connect.mailerlite.com/api/campaigns*' => Http::response(['data' => [[
-                'id' => 'c1',
-                'name' => 'One month to go',
-                'finished_at' => now()->subDays(3)->toDateTimeString(),
-                'stats' => ['sent' => 260, 'opens_count' => 90, 'clicks_count' => 53],
-            ]]]),
-            'connect.mailerlite.com/api/subscribers*' => Http::response(['data' => [], 'total' => 260]),
-            'connect.mailerlite.com/api/groups*' => Http::response(['data' => []]),
+    public function test_link_clicks_are_read_from_the_links_endpoint(): void
+    {
+        $project = Project::factory()->create();
+        $this->connectMailerLite($project);
+
+        $this->fakeCampaignWithLinks([
+            [
+                'id' => 'l1',
+                'url' => 'https://www.kickstarter.com/projects/double-time-games/totally-football',
+                'clicks_count' => 20,
+                'unique_clicks_count' => 14,
+            ],
+            [
+                'id' => 'l2',
+                'url' => 'https://www.instagram.com/totallyfootballgame/',
+                'clicks_count' => 0,
+                'unique_clicks_count' => 0,
+            ],
         ]);
 
         app(MailerLiteIntegration::class, ['project' => $project])->sync();
@@ -122,43 +149,32 @@ class UtmBreakdownTest extends TestCase
         $links = app(ConversionBreakdown::class)->build($project, 30)['email_links'];
 
         $this->assertCount(2, $links);
-        $this->assertSame('https://kickstarter.com/projects/x', $links[0]['url']);
-        $this->assertSame(41, $links[0]['clicks']);
-        $this->assertSame('One month to go', $links[0]['campaign']);
+        $this->assertSame('https://www.kickstarter.com/projects/double-time-games/totally-football', $links[0]['url']);
+        // Every click, not people: twenty clicks from fourteen people is
+        // a different story from twenty people.
+        $this->assertSame(20, $links[0]['clicks']);
+        $this->assertSame('Kickstarter pre-campaign launch', $links[0]['campaign']);
     }
 
-    public function test_an_unrecognised_link_shape_records_nothing_rather_than_guessing(): void
+    public function test_mailerlites_own_placeholder_links_are_left_out(): void
     {
         $project = Project::factory()->create();
-        Integration::factory()->for($project)->create([
-            'provider' => 'mailerlite',
-            'credentials' => ['api_key' => 'ml-key'],
-            'settings' => [],
+        $this->connectMailerLite($project);
+
+        // Every email carries these, by template and by law. Reported,
+        // they would sit at the top of the table forever saying nothing.
+        $this->fakeCampaignWithLinks([
+            ['id' => 'l1', 'url' => '{$unsubscribe}', 'clicks_count' => 3, 'unique_clicks_count' => 3],
+            ['id' => 'l2', 'url' => '{$url}', 'clicks_count' => 2, 'unique_clicks_count' => 2],
+            ['id' => 'l3', 'url' => 'https://totallyfootballgame.co.uk', 'clicks_count' => 9, 'unique_clicks_count' => 7],
         ]);
 
-        Http::fake([
-            // A shape none of the candidate spellings match.
-            'connect.mailerlite.com/api/campaigns/c1' => Http::response(['data' => [
-                'id' => 'c1',
-                'stats' => ['some_future_field' => [['href' => 'https://x', 'hits' => 9]]],
-            ]]),
-            'connect.mailerlite.com/api/campaigns*' => Http::response(['data' => [[
-                'id' => 'c1',
-                'name' => 'One month to go',
-                'finished_at' => now()->subDays(3)->toDateTimeString(),
-                'stats' => ['sent' => 260],
-            ]]]),
-            'connect.mailerlite.com/api/subscribers*' => Http::response(['data' => [], 'total' => 260]),
-            'connect.mailerlite.com/api/groups*' => Http::response(['data' => []]),
-        ]);
+        app(MailerLiteIntegration::class, ['project' => $project])->sync();
 
-        // The sync still succeeds — an unknown link shape is not a reason
-        // to lose the subscriber count and the send with it.
-        $result = app(MailerLiteIntegration::class, ['project' => $project])->sync();
+        $links = app(ConversionBreakdown::class)->build($project, 30)['email_links'];
 
-        $this->assertTrue($result->ok);
-        $this->assertSame([], app(ConversionBreakdown::class)->build($project, 30)['email_links']);
-        $this->assertDatabaseHas('metric_snapshots', ['metric' => 'email_campaign_sent']);
+        $this->assertCount(1, $links);
+        $this->assertSame('https://totallyfootballgame.co.uk', $links[0]['url']);
     }
 
     public function test_the_new_cuts_reach_the_conversion_tab(): void

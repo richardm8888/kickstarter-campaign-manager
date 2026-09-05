@@ -41,7 +41,10 @@ class CampaignSendBackfillTest extends TestCase
     private function fakeMailerLite(array $campaigns): void
     {
         Http::fake([
+            // Order matters: the more specific patterns first.
+            'connect.mailerlite.com/api/campaigns/*/links' => Http::response(['data' => []]),
             'connect.mailerlite.com/api/campaigns*' => Http::response(['data' => $campaigns]),
+            'connect.mailerlite.com/api/automations*' => Http::response(['data' => []]),
             'connect.mailerlite.com/api/subscribers*' => Http::response(['data' => [], 'total' => 120]),
             'connect.mailerlite.com/api/groups*' => Http::response(['data' => []]),
         ]);

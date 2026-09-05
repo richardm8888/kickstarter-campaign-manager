@@ -4,7 +4,6 @@ namespace App\Integrations\Providers;
 
 use App\Integrations\BaseIntegration;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class MailerLiteIntegration extends BaseIntegration
 {
@@ -13,6 +12,9 @@ class MailerLiteIntegration extends BaseIntegration
      * One request each, so this is the bound on the extra traffic.
      */
     private const LINK_DETAIL_CAMPAIGNS = 10;
+
+    /** Automations to read. Each costs one extra request per sync. */
+    private const AUTOMATIONS = 25;
 
     public function provider(): string
     {
@@ -131,6 +133,7 @@ class MailerLiteIntegration extends BaseIntegration
             ...$rows,
             ...$this->groupMetrics(),
             ...$this->campaignMetrics($credentials),
+            ...$this->automationMetrics($credentials),
             ...$this->cohortMetrics($credentials),
         ];
     }
@@ -290,17 +293,18 @@ class MailerLiteIntegration extends BaseIntegration
     /**
      * Clicks on each link inside a campaign.
      *
-     * The campaign list carries a total; which link earned it lives on the
-     * campaign itself, so this fetches the recent ones individually.
+     * Read from the campaign's own links endpoint. An earlier version
+     * looked for this under `stats` on the campaign — four guessed
+     * spellings, because the documentation was unreachable from where it
+     * was written. All four were wrong, and the table stayed empty. The
+     * shape below was read off the live API rather than recalled:
      *
-     * **The shape of that per-link data is not verified against a live
-     * account.** MailerLite's docs were unreachable from where this was
-     * written and there was no key to probe with, so `linksFrom` reads a
-     * few plausible spellings rather than one asserted from memory —
-     * which is how a previous guess in this project ended up measuring an
-     * event nobody had installed. When none of them match, it says so in
-     * the log with the keys that were actually there, so the real shape
-     * can be read off one sync rather than guessed at again.
+     *   GET /campaigns/{id}/links -> data[] of
+     *     { id, url, label, safe_url, clicks_count, unique_clicks_count }
+     *
+     * `clicks_count` counts every click; `unique_clicks_count` counts
+     * people. Both are recorded, because "twenty clicks from fourteen
+     * people" is a different story from twenty people.
      *
      * @param  list<array<string, mixed>>  $campaigns
      * @return list<array<string, mixed>>
@@ -313,7 +317,6 @@ class MailerLiteIntegration extends BaseIntegration
         ), 0, self::LINK_DETAIL_CAMPAIGNS);
 
         $rows = [];
-        $anyFound = false;
 
         foreach ($recent as $campaign) {
             $id = (string) ($campaign['id'] ?? '');
@@ -322,92 +325,137 @@ class MailerLiteIntegration extends BaseIntegration
                 continue;
             }
 
-            $detail = Http::withToken($credentials['api_key'])
+            $links = Http::withToken($credentials['api_key'])
                 ->acceptJson()
-                ->get("https://connect.mailerlite.com/api/campaigns/{$id}")
+                ->get("https://connect.mailerlite.com/api/campaigns/{$id}/links")
                 ->json('data', []);
 
-            $links = $this->linksFrom(is_array($detail) ? $detail : []);
-
-            if ($links === []) {
-                continue;
-            }
-
-            $anyFound = true;
             $date = substr((string) ($campaign['finished_at'] ?? $campaign['scheduled_for']), 0, 10);
 
-            foreach ($links as $url => $clicks) {
+            foreach (is_array($links) ? $links : [] as $link) {
+                $url = (string) ($link['url'] ?? '');
+
+                // MailerLite's own placeholders. `{$unsubscribe}` and
+                // `{$url}` are in every email by law and by template, so
+                // they would top the table forever while telling nobody
+                // anything about the campaign.
+                if ($url === '' || str_starts_with($url, '{$')) {
+                    continue;
+                }
+
                 $rows[] = [
                     'metric' => 'email_link_clicks',
-                    'value' => (float) $clicks,
+                    'value' => (float) ($link['clicks_count'] ?? 0),
                     'recorded_at' => $date,
                     'dimensions' => [
                         'url' => $url,
                         'campaign_id' => $id,
                         'campaign_name' => $campaign['name'] ?? 'Untitled campaign',
+                        'unique_clicks' => (int) ($link['unique_clicks_count'] ?? 0),
                     ],
                 ];
             }
-        }
-
-        if (! $anyFound && $recent !== []) {
-            Log::info('MailerLite returned no per-link click data in a recognised shape', [
-                'project_id' => $this->project->id,
-                // The keys that were there, so the shape can be pinned
-                // from one log line instead of another round of guessing.
-                'campaign_keys' => array_keys($recent[0]),
-                'stats_keys' => array_keys($recent[0]['stats'] ?? []),
-            ]);
         }
 
         return $rows;
     }
 
     /**
-     * Per-link clicks out of a campaign payload, whatever it calls them.
+     * The automation sequences, which send far more than the broadcasts.
      *
-     * Candidate spellings, not a documented contract — see linkClicks.
+     * These were invisible: `email_opens` and friends come from the
+     * campaigns endpoint, which holds broadcasts only. One sequence here
+     * had sent more than every broadcast combined, so the Email tab was
+     * describing a minority of the email programme as though it were all
+     * of it.
      *
-     * @param  array<string, mixed>  $campaign
-     * @return array<string, float> clicks keyed by URL
+     * Their figures are running totals rather than a day's activity — a
+     * drip has no send date, each subscriber gets it on their own clock —
+     * so they are recorded as levels, dated today, and read latest-wins.
+     * Summing them across days would multiply the same 227 sends by the
+     * number of times the sync ran.
+     *
+     * The list endpoint carries no stats; each automation has to be
+     * fetched for those. Three requests an hour for three sequences.
+     *
+     * @return list<array<string, mixed>>
      */
-    private function linksFrom(array $campaign): array
+    private function automationMetrics(array $credentials): array
     {
-        $candidates = [
-            $campaign['stats']['clicks_by_link'] ?? null,
-            $campaign['clicks_by_link'] ?? null,
-            $campaign['stats']['links'] ?? null,
-            $campaign['links'] ?? null,
-        ];
+        $automations = Http::withToken($credentials['api_key'])
+            ->acceptJson()
+            ->get('https://connect.mailerlite.com/api/automations', ['limit' => self::AUTOMATIONS])
+            ->throw()
+            ->json('data', []);
 
-        foreach ($candidates as $candidate) {
-            if (! is_array($candidate) || $candidate === []) {
+        $rows = [];
+
+        foreach (is_array($automations) ? $automations : [] as $summary) {
+            $id = (string) ($summary['id'] ?? '');
+
+            if ($id === '') {
                 continue;
             }
 
-            $links = [];
+            $automation = Http::withToken($credentials['api_key'])
+                ->acceptJson()
+                ->get("https://connect.mailerlite.com/api/automations/{$id}")
+                ->json('data', []);
 
-            foreach ($candidate as $entry) {
-                if (! is_array($entry)) {
+            $stats = $automation['stats'] ?? [];
+            $name = (string) ($automation['name'] ?? $summary['name'] ?? 'Untitled automation');
+
+            $dimensions = [
+                'automation_id' => $id,
+                'automation_name' => $name,
+                'enabled' => (bool) ($automation['enabled'] ?? $summary['enabled'] ?? false),
+            ];
+
+            foreach ([
+                'email_automation_sent' => 'sent',
+                'email_automation_opens' => 'opens_count',
+                'email_automation_clicks' => 'clicks_count',
+                'email_automation_unsubscribes' => 'unsubscribes_count',
+            ] as $metric => $field) {
+                $rows[] = [
+                    'metric' => $metric,
+                    'value' => (float) ($stats[$field] ?? 0),
+                    'recorded_at' => now(),
+                    'dimensions' => $dimensions,
+                ];
+            }
+
+            // Per email in the sequence, so a sixth message that nobody
+            // opens can be told apart from a first one that everybody
+            // does. Only email steps carry stats; a delay step has none.
+            foreach ($automation['steps'] ?? [] as $position => $step) {
+                if (($step['type'] ?? null) !== 'email') {
                     continue;
                 }
 
-                $url = $entry['url'] ?? $entry['link'] ?? null;
-                $clicks = $entry['count'] ?? $entry['clicks'] ?? $entry['clicks_count'] ?? $entry['total'] ?? null;
+                $stepStats = $step['email']['stats'] ?? [];
 
-                if (filled($url) && $clicks !== null) {
-                    // Summed, because the same URL can appear more than
-                    // once when an email links to it from several places.
-                    $links[(string) $url] = ($links[(string) $url] ?? 0) + (float) $clicks;
+                foreach ([
+                    'email_automation_step_sent' => 'sent',
+                    'email_automation_step_opens' => 'opens_count',
+                    'email_automation_step_clicks' => 'clicks_count',
+                ] as $metric => $field) {
+                    $rows[] = [
+                        'metric' => $metric,
+                        'value' => (float) ($stepStats[$field] ?? 0),
+                        'recorded_at' => now(),
+                        'dimensions' => $dimensions + [
+                            'step_id' => (string) ($step['id'] ?? $position),
+                            'step_name' => $step['name'] ?? $step['subject'] ?? 'Untitled email',
+                            'subject' => $step['subject'] ?? null,
+                            'position' => $position + 1,
+                        ],
+                    ];
                 }
-            }
-
-            if ($links !== []) {
-                return $links;
             }
         }
 
-        return [];
+        return $rows;
     }
 
     /**
