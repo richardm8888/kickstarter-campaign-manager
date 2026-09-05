@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getAnalytics, type AnalyticsCategory } from './api'
 import { ConversionTable } from './ConversionTable'
 import { FollowerLiftTable } from './FollowerLiftTable'
+import { EmailLinksTable } from './EmailLinksTable'
 import { MetricChart } from './MetricChart'
 import { EmptyState, PageHeader } from '@/components/layout/ProjectLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,6 +34,23 @@ export function AnalyticsPage() {
   // history of opens. Without this the most useful thing on the tab
   // sits behind an empty state saying there is nothing here.
   const hasLift = (data?.follower_lift?.sends.length ?? 0) > 0
+
+  // Same reasoning for the breakdown tables. The headline charts are
+  // sessions and signups; the tables underneath are the reason to be on
+  // this tab at all, and hiding them behind "no data in this category"
+  // is how the UTM cuts stayed invisible after they were built.
+  const breakdown = data?.breakdown
+  const hasBreakdown =
+    breakdown !== null &&
+    breakdown !== undefined &&
+    [
+      breakdown.by_source,
+      breakdown.by_campaign,
+      breakdown.by_medium,
+      breakdown.kickstarter_arrivals,
+      breakdown.kickstarter_arrivals_by_campaign,
+      breakdown.email_links,
+    ].some((rows) => rows.length > 0)
 
   return (
     <>
@@ -80,7 +98,7 @@ export function AnalyticsPage() {
             <Skeleton key={i} className="h-60" />
           ))}
         </div>
-      ) : data && data.metrics.every((m) => m.series.length === 0) && !hasLift ? (
+      ) : data && data.metrics.every((m) => m.series.length === 0) && !hasLift && !hasBreakdown ? (
         <EmptyState
           title="No data in this category yet"
           body="Connect the matching integration and data will start flowing in within the hour."
@@ -90,10 +108,22 @@ export function AnalyticsPage() {
         {data?.breakdown && (
           <div className="mb-4 grid gap-4 lg:grid-cols-2">
             <ConversionTable
-              title="By referrer"
-              description="Where the traffic came from, and how much of it signed up."
-              columnLabel="Referrer"
+              title="By source"
+              description="utm_source where the link carried one, the referring domain otherwise. Called a referrer before, which hid the fact that it is mostly your own UTM tags."
+              columnLabel="Source"
               rows={data.breakdown.by_source}
+            />
+            <ConversionTable
+              title="By campaign"
+              description="utm_campaign — which specific email or ad brought them, rather than merely which channel."
+              columnLabel="Campaign"
+              rows={data.breakdown.by_campaign}
+            />
+            <ConversionTable
+              title="By medium"
+              description="utm_medium. One blended conversion rate hides email converting many times better than paid traffic."
+              columnLabel="Medium"
+              rows={data.breakdown.by_medium}
             />
             <ConversionTable
               title="By region"
@@ -101,6 +131,15 @@ export function AnalyticsPage() {
               columnLabel="Region"
               rows={data.breakdown.by_region}
             />
+            {data.breakdown.kickstarter_arrivals_by_campaign.length > 0 && (
+              <ConversionTable
+                title="Reaching Kickstarter, by campaign"
+                description="Which email actually got people to the page. Pairs with the follower table on the Email tab — same campaigns, the step before."
+                columnLabel="Campaign"
+                hideConversion
+                rows={data.breakdown.kickstarter_arrivals_by_campaign}
+              />
+            )}
             {data.breakdown.kickstarter_arrivals.length > 0 && (
               <ConversionTable
                 title="Reaching your Kickstarter page"
@@ -110,6 +149,7 @@ export function AnalyticsPage() {
                 rows={data.breakdown.kickstarter_arrivals}
               />
             )}
+            <EmailLinksTable rows={data.breakdown.email_links} />
           </div>
         )}
         {data?.follower_lift && (

@@ -29,9 +29,16 @@ class ConversionBreakdown
     public function build(Project $project, int $days = 30): array
     {
         return [
-            'by_source' => $this->bySource($project, $days),
+            'by_source' => $this->byDimension($project, 'source', $days),
+            // utm_campaign and utm_medium. Source alone puts every email
+            // in one row, which is no use for deciding which one to send
+            // again.
+            'by_campaign' => $this->byDimension($project, 'campaign', $days),
+            'by_medium' => $this->byDimension($project, 'medium', $days),
             'by_region' => $this->byRegion($project, $days),
-            'kickstarter_arrivals' => $this->kickstarterArrivals($project, $days),
+            'kickstarter_arrivals' => $this->kickstarterArrivals($project, 'source', $days),
+            'kickstarter_arrivals_by_campaign' => $this->kickstarterArrivals($project, 'campaign', $days),
+            'email_links' => $this->emailLinks($project, $days),
         ];
     }
 
@@ -41,22 +48,22 @@ class ConversionBreakdown
      *
      * @return list<array<string, mixed>>
      */
-    private function bySource(Project $project, int $days): array
+    private function byDimension(Project $project, string $key, int $days): array
     {
         $rows = [];
 
         foreach ($this->segments->get(
             $project,
-            ['sessions_by_source', 'leads_by_source'],
-            'source',
+            ["sessions_by_{$key}", "leads_by_{$key}"],
+            $key,
             $days,
             'ga4',
         ) as $segment) {
             $rows[] = $this->row(
-                (string) $segment['dimensions']['source'],
-                (string) $segment['dimensions']['source'],
-                $segment['totals']['sessions_by_source'],
-                $segment['totals']['leads_by_source'],
+                (string) $segment['dimensions'][$key],
+                (string) $segment['dimensions'][$key],
+                $segment['totals']["sessions_by_{$key}"],
+                $segment['totals']["leads_by_{$key}"],
             );
         }
 
@@ -108,21 +115,21 @@ class ConversionBreakdown
      *
      * @return list<array<string, mixed>>
      */
-    private function kickstarterArrivals(Project $project, int $days): array
+    private function kickstarterArrivals(Project $project, string $key, int $days): array
     {
         $rows = [];
 
         foreach ($this->segments->get(
             $project,
-            ['ks_page_sessions_by_source'],
-            'source',
+            ["ks_page_sessions_by_{$key}"],
+            $key,
             $days,
             'ga4',
         ) as $segment) {
             $rows[] = [
-                'key' => (string) $segment['dimensions']['source'],
-                'label' => (string) $segment['dimensions']['source'],
-                'sessions' => (int) $segment['totals']['ks_page_sessions_by_source'],
+                'key' => (string) $segment['dimensions'][$key],
+                'label' => (string) $segment['dimensions'][$key],
+                'sessions' => (int) $segment['totals']["ks_page_sessions_by_{$key}"],
                 'leads' => 0,
                 'conversion' => null,
             ];
@@ -131,6 +138,38 @@ class ConversionBreakdown
         usort($rows, fn (array $a, array $b) => $b['sessions'] <=> $a['sessions']);
 
         return array_slice($rows, 0, 8);
+    }
+
+    /**
+     * Links clicked inside the emails, busiest first.
+     *
+     * From MailerLite rather than from GA4: a click it counts happened
+     * even if the landing page never loaded, so the two disagreeing is
+     * itself worth seeing — that gap is people who clicked and bounced.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function emailLinks(Project $project, int $days): array
+    {
+        $rows = [];
+
+        foreach ($this->segments->get(
+            $project,
+            ['email_link_clicks'],
+            'url',
+            $days,
+            'mailerlite',
+        ) as $segment) {
+            $rows[] = [
+                'url' => (string) $segment['dimensions']['url'],
+                'campaign' => (string) ($segment['dimensions']['campaign_name'] ?? 'Untitled campaign'),
+                'clicks' => (int) $segment['totals']['email_link_clicks'],
+            ];
+        }
+
+        usort($rows, fn (array $a, array $b) => $b['clicks'] <=> $a['clicks']);
+
+        return array_slice($rows, 0, 10);
     }
 
     /** @return array<string, mixed> */
