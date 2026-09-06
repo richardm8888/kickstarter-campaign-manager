@@ -1,0 +1,73 @@
+name: Diagnose
+
+# Answers questions about the running system without anyone needing a
+# terminal — the reviewer here is usually on a phone.
+#
+# It runs a *fixed* script from the repository. There is deliberately no
+# free-text command input: a workflow that runs whatever it is handed is
+# a remote shell for anyone who can click the button, and this one only
+# needs to read.
+#
+# Secrets: none beyond the SSH key the deploy already uses. The probes
+# lean on credentials the application itself holds, so nothing is copied
+# anywhere new.
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: 'What to look at'
+        required: true
+        default: logs
+        type: choice
+        options:
+          - logs
+          - containers
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the probe over SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/kickstarter-launch-os' }}
+          PROBE: ${{ inputs.probe }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Written to a file and run from there rather than piped into
+          # `bash -s`: a command inside that reads stdin would otherwise
+          # eat the rest of the script, which is how deploys silently
+          # stopped swapping containers for weeks.
+          cat > /tmp/remote.sh <<'REMOTE'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+
+          case "$PROBE" in
+            logs)
+              docker compose logs backend --tail=300 --no-color < /dev/null
+              ;;
+            containers)
+              docker compose ps < /dev/null
+              docker stats --no-stream < /dev/null
+              df -h / < /dev/null
+              ;;
+          esac
+          REMOTE
+
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
+            "cat > /tmp/diagnose.sh \
+             && DEPLOY_PATH='$DEPLOY_PATH' PROBE='$PROBE' bash /tmp/diagnose.sh; \
+             status=\$?; rm -f /tmp/diagnose.sh; exit \$status" \
+            < /tmp/remote.sh

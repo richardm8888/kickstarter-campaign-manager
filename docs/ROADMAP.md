@@ -299,6 +299,29 @@ error is the same either way, and `/debug_token` would distinguish them if
 it ever seems worth chasing. The probe that asked has been removed rather
 than left on a page as a button nobody should press again.
 
+### Email is mostly automated, and was mostly unreported
+
+`email_opens` and friends come from MailerLite's campaigns endpoint,
+which holds broadcasts only. Automations are separate objects, so every
+drip sequence was invisible. Read from the live account: three
+broadcasts had sent 167 emails, and the sequences had sent 330.
+
+Worse, the tab was inconsistent with itself. The cohort open rates are
+built from per-subscriber counters, which *do* include automations, so
+one figure counted a third of the programme and the one beside it
+counted all of it.
+
+Automations are now read per sequence and per email in the sequence, and
+kept apart from the broadcast charts rather than added to them. Their
+figures are running totals with no send date — each subscriber gets the
+third email on their own clock — so they are levels, read latest-wins,
+and labelled "since it was switched on". Summing them across days would
+multiply the same 227 sends by the number of times the sync ran.
+
+One consequence for follower lift: an automation drips continuously, so
+its effect is inside the quiet-day baseline. A broadcast's measured lift
+is therefore what it achieved *above* the sequence already running.
+
 **So the measurement is follower lift around each send** (`FollowerLift`).
 Followers gained in the three days from a send, minus ad-bought follows in
 that window, minus what a quiet day brings for this project — the median of

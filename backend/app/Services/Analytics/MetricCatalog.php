@@ -52,6 +52,17 @@ class MetricCatalog
         'email_other_click_rate' => self::LEVEL,
         'ks_followers' => self::LEVEL,
 
+        // Automations are running totals, not a day's activity: a drip
+        // has no send date, each subscriber gets it on their own clock.
+        // Levels, so repeated syncs restate rather than accumulate.
+        'email_automation_sent' => self::LEVEL,
+        'email_automation_opens' => self::LEVEL,
+        'email_automation_clicks' => self::LEVEL,
+        'email_automation_unsubscribes' => self::LEVEL,
+        'email_automation_step_sent' => self::LEVEL,
+        'email_automation_step_opens' => self::LEVEL,
+        'email_automation_step_clicks' => self::LEVEL,
+
         // GA4's own signup count, and the same traffic and signups cut by
         // referrer and region. The cuts carry their own names because a
         // day collapses to one figure per metric — dimensioned copies of

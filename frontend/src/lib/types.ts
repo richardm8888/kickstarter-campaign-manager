@@ -292,6 +292,40 @@ export interface FollowerLift {
   note: string | null
 }
 
+export interface AutomationStep {
+  name: string
+  subject: string | null
+  position: number
+  sent: number
+  opens: number
+  clicks: number
+  /** Null below the sample threshold, as everywhere else. */
+  open_rate: number | null
+  click_rate: number | null
+}
+
+export interface EmailAutomation {
+  id: string
+  name: string
+  enabled: boolean
+  sent: number
+  opens: number
+  clicks: number
+  unsubscribes: number
+  open_rate: number | null
+  click_rate: number | null
+  steps: AutomationStep[]
+}
+
+export interface EmailPerformance {
+  automations: EmailAutomation[]
+  totals: {
+    automated_sent: number
+    broadcast_sent: number
+    automated_share: number | null
+  } | null
+}
+
 export interface Insight {
   id: number
   kind: 'insight' | 'recommendation'
