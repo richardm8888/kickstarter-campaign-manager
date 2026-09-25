@@ -16,6 +16,7 @@ import { number } from '@/lib/format'
 const CATEGORIES: { key: AnalyticsCategory; label: string }[] = [
   { key: 'traffic', label: 'Traffic' },
   { key: 'conversion', label: 'Conversion' },
+  { key: 'audience', label: 'Audience' },
   { key: 'ads', label: 'Ads' },
   { key: 'email', label: 'Email' },
   { key: 'revenue', label: 'Revenue' },

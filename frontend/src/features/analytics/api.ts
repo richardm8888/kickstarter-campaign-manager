@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AnalyticsMetric, ConversionBreakdown, EmailPerformance, FollowerLift } from '@/lib/types'
 
-export type AnalyticsCategory = 'traffic' | 'conversion' | 'ads' | 'email' | 'revenue'
+export type AnalyticsCategory = 'traffic' | 'conversion' | 'audience' | 'ads' | 'email' | 'revenue'
 
 export const getAnalytics = (projectId: string, category: AnalyticsCategory, days: number) =>
   queryOptions({

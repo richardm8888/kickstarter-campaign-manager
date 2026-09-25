@@ -48,6 +48,15 @@ class AnalyticsController extends Controller
             ['metric' => 'email_form_click_rate', 'label' => 'Click rate — Meta form leads'],
             ['metric' => 'email_other_click_rate', 'label' => 'Click rate — everyone else'],
         ],
+        // The audience the launch actually rests on. Followers were
+        // recorded hourly from the day the Kickstarter page was linked
+        // and never plotted — only ever shown as today's number on the
+        // dashboard, which says nothing about whether it is moving.
+        'audience' => [
+            ['metric' => 'ks_followers', 'label' => 'Kickstarter followers'],
+            ['metric' => 'email_subscribers', 'label' => 'Email subscribers'],
+            ['metric' => 'email_vip_subscribers', 'label' => 'VIPs'],
+        ],
         'revenue' => [
             ['metric' => 'revenue', 'label' => 'Revenue'],
             ['metric' => 'payments', 'label' => 'Payments'],
