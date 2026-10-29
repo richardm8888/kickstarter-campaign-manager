@@ -19,6 +19,7 @@ import { ProjectLayout } from '@/components/layout/ProjectLayout'
  */
 const LoginPage = lazyRouteComponent(() => import('@/features/auth/LoginPage'), 'LoginPage')
 const RegisterPage = lazyRouteComponent(() => import('@/features/auth/RegisterPage'), 'RegisterPage')
+const InvitePage = lazyRouteComponent(() => import('@/features/members/InvitePage'), 'InvitePage')
 const ForgotPasswordPage = lazyRouteComponent(() => import('@/features/auth/ForgotPasswordPage'), 'ForgotPasswordPage')
 const ProjectsPage = lazyRouteComponent(() => import('@/features/projects/ProjectsPage'), 'ProjectsPage')
 const SettingsPage = lazyRouteComponent(() => import('@/features/projects/SettingsPage'), 'SettingsPage')
@@ -26,6 +27,7 @@ const DashboardPage = lazyRouteComponent(() => import('@/features/dashboard/Dash
 const AnalyticsPage = lazyRouteComponent(() => import('@/features/analytics/AnalyticsPage'), 'AnalyticsPage')
 const AdsPage = lazyRouteComponent(() => import('@/features/ads/AdsPage'), 'AdsPage')
 const DailyPage = lazyRouteComponent(() => import('@/features/daily/DailyPage'), 'DailyPage')
+const LaunchPlanPage = lazyRouteComponent(() => import('@/features/launch/LaunchPlanPage'), 'LaunchPlanPage')
 const InsightsPage = lazyRouteComponent(() => import('@/features/ai/InsightsPage'), 'InsightsPage')
 const HealthPage = lazyRouteComponent(() => import('@/features/ai/HealthPage'), 'HealthPage')
 const ForecastPage = lazyRouteComponent(() => import('@/features/forecasting/ForecastPage'), 'ForecastPage')
@@ -71,6 +73,13 @@ const forgotPasswordRoute = createRoute({
   component: ForgotPasswordPage,
 })
 
+// Open to everyone: the page itself handles being signed in or not.
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invite/$token',
+  component: InvitePage,
+})
+
 const projectsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects',
@@ -95,6 +104,12 @@ const dailyRoute = createRoute({
   getParentRoute: () => projectLayoutRoute,
   path: '/today',
   component: DailyPage,
+})
+
+const launchPlanRoute = createRoute({
+  getParentRoute: () => projectLayoutRoute,
+  path: '/plan',
+  component: LaunchPlanPage,
 })
 
 const analyticsRoute = createRoute({
@@ -150,10 +165,12 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   forgotPasswordRoute,
+  inviteRoute,
   projectsRoute,
   projectLayoutRoute.addChildren([
     dashboardRoute,
     dailyRoute,
+    launchPlanRoute,
     analyticsRoute,
     adsRoute,
     insightsRoute,

@@ -3,6 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import { login } from './api'
 import { AuthLayout, FieldError } from './AuthLayout'
+import { pendingInvite } from '@/features/members/api'
 import { ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,7 +17,12 @@ export function LoginPage() {
 
   const mutation = useMutation({
     mutationFn: login,
-    onSuccess: () => navigate({ to: '/projects' }),
+    // Someone arriving from an invite link goes back to it to join.
+    onSuccess: () => {
+      const invite = pendingInvite()
+      if (invite) navigate({ to: '/invite/$token', params: { token: invite } })
+      else navigate({ to: '/projects' })
+    },
   })
 
   const errors = mutation.error instanceof ApiError ? mutation.error.errors : {}

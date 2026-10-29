@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { me } from '@/features/auth/api'
+import { AccessCard } from '@/features/members/AccessCard'
 import { getProject, updateProject } from './api'
 import { FollowerEntry } from './FollowerEntry'
 import { PageHeader } from '@/components/layout/ProjectLayout'
@@ -29,6 +31,7 @@ export function SettingsPage() {
   const { projectId } = useParams({ strict: false }) as { projectId: string }
   const queryClient = useQueryClient()
   const { data, isPending } = useQuery(getProject(projectId))
+  const { data: currentUser } = useQuery({ queryKey: ['me'], queryFn: me })
 
   const [form, setForm] = useState<Form | null>(null)
 
@@ -221,6 +224,10 @@ export function SettingsPage() {
           settings form rather than nested inside it. */}
       <div className="mt-4">
         <FollowerEntry projectId={projectId} hasKickstarterUrl={form.kickstarter_url !== ''} />
+      </div>
+
+      <div className="mt-4">
+        <AccessCard projectId={projectId} currentUserId={currentUser?.user.id} />
       </div>
     </>
   )

@@ -17,6 +17,8 @@ export interface Project {
   guaranteed_backers: number
   launch_date: string | null
   created_at: string
+  /** False on a project someone else owns and has shared with you. */
+  is_owner?: boolean
 }
 
 export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning' | 'off'
@@ -494,4 +496,63 @@ export interface DailyBrief {
   tasks: DailyTask[]
   funnel_health: FunnelHealthRow[]
   nothing_to_worry_about: string[]
+}
+
+export type LaunchTaskStatus = 'todo' | 'done' | 'skipped'
+
+export interface LaunchTaskDraft {
+  id: number
+  content: string
+  notes: string | null
+  created_at: string
+}
+
+export interface LaunchTask {
+  id: number
+  template_key: string | null
+  phase: string
+  category: string
+  title: string
+  details: string | null
+  assignee: string | null
+  offset_days: number | null
+  due_on: string | null
+  due_date: string | null
+  content_type: string | null
+  status: LaunchTaskStatus
+  completed_at: string | null
+  latest_draft: LaunchTaskDraft | null
+  drafts_count: number
+}
+
+export interface LaunchTaskPlan {
+  tasks: LaunchTask[]
+  phases: Record<string, string>
+  categories: Record<string, string>
+  content_types: Record<string, string>
+  team: string[]
+  content_brief: string | null
+  launch_date: string | null
+  launch_date_confirmed: boolean
+  ai_available: boolean
+}
+
+export interface ProjectPerson {
+  id: number
+  name: string
+  email: string
+}
+
+export interface ProjectInvitation {
+  id: number
+  email: string
+  expires_at: string
+  token: string
+}
+
+export interface ProjectMembers {
+  is_owner: boolean
+  owner: ProjectPerson
+  members: ProjectPerson[]
+  invitations: ProjectInvitation[]
 }

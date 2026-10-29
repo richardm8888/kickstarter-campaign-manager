@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -25,6 +26,9 @@ class Project extends Model
         'guaranteed_backers',
         'launch_date',
         'forecast_assumptions',
+        'team',
+        'content_brief',
+        'launch_date_confirmed',
     ];
 
     protected function casts(): array
@@ -35,12 +39,36 @@ class Project extends Model
             'guaranteed_backers' => 'integer',
             'launch_date' => 'date',
             'forecast_assumptions' => 'array',
+            'team' => 'array',
+            'launch_date_confirmed' => 'boolean',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** People other than the owner who can work on the project. */
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'project_members')->withTimestamps();
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class);
+    }
+
+    public function isOwnedBy(User $user): bool
+    {
+        return $this->user_id === $user->id;
+    }
+
+    /** Owner or member: anyone allowed to see and work on the project. */
+    public function hasMember(User $user): bool
+    {
+        return $this->isOwnedBy($user) || $this->members()->whereKey($user->id)->exists();
     }
 
     public function integrations(): HasMany
@@ -71,6 +99,11 @@ class Project extends Model
     public function dailyTasks(): HasMany
     {
         return $this->hasMany(DailyTask::class);
+    }
+
+    public function launchTasks(): HasMany
+    {
+        return $this->hasMany(LaunchTask::class);
     }
 
     public function landingPageAnalyses(): HasMany
