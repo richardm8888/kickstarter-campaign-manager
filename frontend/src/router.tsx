@@ -27,6 +27,7 @@ const DashboardPage = lazyRouteComponent(() => import('@/features/dashboard/Dash
 const AnalyticsPage = lazyRouteComponent(() => import('@/features/analytics/AnalyticsPage'), 'AnalyticsPage')
 const AdsPage = lazyRouteComponent(() => import('@/features/ads/AdsPage'), 'AdsPage')
 const DailyPage = lazyRouteComponent(() => import('@/features/daily/DailyPage'), 'DailyPage')
+const SeoPage = lazyRouteComponent(() => import('@/features/seo/SeoPage'), 'SeoPage')
 const LaunchPlanPage = lazyRouteComponent(() => import('@/features/launch/LaunchPlanPage'), 'LaunchPlanPage')
 const InsightsPage = lazyRouteComponent(() => import('@/features/ai/InsightsPage'), 'InsightsPage')
 const HealthPage = lazyRouteComponent(() => import('@/features/ai/HealthPage'), 'HealthPage')
@@ -112,6 +113,12 @@ const launchPlanRoute = createRoute({
   component: LaunchPlanPage,
 })
 
+const seoRoute = createRoute({
+  getParentRoute: () => projectLayoutRoute,
+  path: '/seo',
+  component: SeoPage,
+})
+
 const analyticsRoute = createRoute({
   getParentRoute: () => projectLayoutRoute,
   path: '/analytics',
@@ -171,6 +178,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     dailyRoute,
     launchPlanRoute,
+    seoRoute,
     analyticsRoute,
     adsRoute,
     insightsRoute,

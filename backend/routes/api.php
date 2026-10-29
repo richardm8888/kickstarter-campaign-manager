@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\KickstarterFollowerController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\ProjectMemberController;
+use App\Http\Controllers\Api\SeoController;
 use App\Http\Controllers\Api\LandingPageController;
 use App\Http\Controllers\Api\MailerLiteGroupController;
 use App\Http\Controllers\Api\PageAnalysisController;
@@ -78,6 +79,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/daily', [DailyTaskController::class, 'index']);
         Route::get('/daily/history', [DailyTaskController::class, 'history']);
         Route::patch('/daily/{task}', [DailyTaskController::class, 'update']);
+
+        Route::get('/seo', [SeoController::class, 'show']);
+        // Each call is a paid AI request.
+        Route::post('/seo/recommendations', [SeoController::class, 'recommendations'])->middleware('throttle:10,1');
 
         Route::get('/members', [ProjectMemberController::class, 'index']);
         Route::post('/members', [ProjectMemberController::class, 'invite']);

@@ -2,6 +2,7 @@
 
 namespace App\Services\PageAudit;
 
+use App\AI\JsonList;
 use App\AI\Contracts\AiProvider;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -140,27 +141,13 @@ class UxCritic
      */
     private function parse(string $raw): array
     {
-        $start = strpos($raw, '[');
-
-        if ($start === false) {
+        if (strpos($raw, '[') === false) {
             Log::warning('UX critique returned no JSON array', ['reply' => mb_substr($raw, 0, 500)]);
 
             return [];
         }
 
-        $body = substr($raw, $start);
-        $end = strrpos($body, ']');
-
-        $decoded = $end === false
-            ? null
-            : json_decode(substr($body, 0, $end + 1), true);
-
-        // A reply cut short loses its closing bracket and takes the whole
-        // array down with it. The findings before the cut are still good
-        // advice, so salvage them rather than showing the creator nothing.
-        if (! is_array($decoded)) {
-            $decoded = $this->salvage($body);
-        }
+        $decoded = JsonList::parse($raw);
 
         if ($decoded === []) {
             Log::warning('UX critique returned unparseable JSON', ['reply' => mb_substr($raw, 0, 500)]);
@@ -188,54 +175,6 @@ class UxCritic
         }
 
         return $findings;
-    }
-
-    /**
-     * Pulls whole objects out of a partial array by walking braces, so a
-     * reply that stops mid-finding still yields the complete ones ahead of
-     * it. Brace counting is enough because the objects are flat.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function salvage(string $body): array
-    {
-        $objects = [];
-        $depth = 0;
-        $startedAt = null;
-        $inString = false;
-        $escaped = false;
-
-        foreach (str_split($body) as $i => $char) {
-            if ($escaped) {
-                $escaped = false;
-
-                continue;
-            }
-
-            if ($inString) {
-                match ($char) {
-                    '\\' => $escaped = true,
-                    '"' => $inString = false,
-                    default => null,
-                };
-
-                continue;
-            }
-
-            match ($char) {
-                '"' => $inString = true,
-                '{' => $depth++ === 0 ? $startedAt = $i : null,
-                '}' => --$depth === 0 && $startedAt !== null
-                    ? $objects[] = substr($body, $startedAt, $i - $startedAt + 1)
-                    : null,
-                default => null,
-            };
-        }
-
-        return array_values(array_filter(array_map(
-            fn (string $json) => json_decode($json, true),
-            $objects,
-        ), is_array(...)));
     }
 
     private function yesNo(bool $value): string

@@ -4,6 +4,7 @@ namespace App\Integrations;
 
 use App\Integrations\Contracts\Integration;
 use App\Integrations\Providers\Ga4Integration;
+use App\Integrations\Providers\SearchConsoleIntegration;
 use App\Integrations\Providers\MailerLiteIntegration;
 use App\Integrations\Providers\MetaIntegration;
 use App\Integrations\Providers\StripeIntegration;
@@ -19,6 +20,7 @@ class IntegrationManager
         'ga4' => Ga4Integration::class,
         'mailerlite' => MailerLiteIntegration::class,
         'stripe' => StripeIntegration::class,
+        'search_console' => SearchConsoleIntegration::class,
     ];
 
     public function __construct(protected readonly MetricRecorder $metrics) {}

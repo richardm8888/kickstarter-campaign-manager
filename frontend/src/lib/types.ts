@@ -146,7 +146,7 @@ export interface LandingPage {
 export interface CredentialField {
   label: string
   help: string
-  type: 'password' | 'textarea'
+  type: 'password' | 'textarea' | 'text'
   placeholder?: string
 }
 
