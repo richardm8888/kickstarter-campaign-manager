@@ -127,13 +127,15 @@ class LaunchTaskController extends Controller
 
         $validated = $request->validate([
             'team' => ['sometimes', 'array', 'max:10'],
-            'team.*' => ['string', 'max:60', 'distinct'],
+            // Nullable because a blank name arrives as null (empty strings are
+            // converted before validation); blanks are dropped below.
+            'team.*' => ['nullable', 'string', 'max:60', 'distinct'],
             'content_brief' => ['sometimes', 'nullable', 'string', 'max:10000'],
             'launch_date_confirmed' => ['sometimes', 'boolean'],
         ]);
 
         if (array_key_exists('team', $validated)) {
-            $validated['team'] = array_values(array_filter(array_map('trim', $validated['team']), 'filled'));
+            $validated['team'] = array_values(array_filter(array_map(fn ($name) => trim((string) $name), $validated['team']), 'filled'));
         }
 
         $project->update($validated);
