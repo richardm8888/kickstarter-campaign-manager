@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\KickstarterFollowerController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\ProjectMemberController;
+use App\Http\Controllers\Api\SeoController;
 use App\Http\Controllers\Api\LandingPageController;
 use App\Http\Controllers\Api\MailerLiteGroupController;
 use App\Http\Controllers\Api\PageAnalysisController;
@@ -79,6 +80,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/daily/history', [DailyTaskController::class, 'history']);
         Route::patch('/daily/{task}', [DailyTaskController::class, 'update']);
 
+        Route::get('/seo', [SeoController::class, 'show']);
+        // Each call is a paid AI request.
+        Route::post('/seo/recommendations', [SeoController::class, 'recommendations'])->middleware('throttle:10,1');
+
         Route::get('/members', [ProjectMemberController::class, 'index']);
         Route::post('/members', [ProjectMemberController::class, 'invite']);
         Route::delete('/members/{user}', [ProjectMemberController::class, 'remove']);
@@ -87,10 +92,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/launch-tasks', [LaunchTaskController::class, 'index']);
         Route::post('/launch-tasks', [LaunchTaskController::class, 'store']);
         Route::post('/launch-tasks/playbook', [LaunchTaskController::class, 'loadPlaybook']);
+        Route::post('/launch-tasks/import', [LaunchTaskController::class, 'import']);
         Route::put('/launch-tasks/settings', [LaunchTaskController::class, 'settings']);
         Route::patch('/launch-tasks/{task}', [LaunchTaskController::class, 'update']);
         Route::delete('/launch-tasks/{task}', [LaunchTaskController::class, 'destroy']);
         Route::get('/launch-tasks/{task}/drafts', [LaunchTaskController::class, 'drafts']);
+        Route::get('/launch-tasks/{task}/handoff', [LaunchTaskController::class, 'handoff']);
         // Each call is a paid AI request.
         Route::post('/launch-tasks/{task}/drafts', [LaunchTaskController::class, 'generate'])->middleware('throttle:20,1');
         Route::get('/analytics', [AnalyticsController::class, 'show']);

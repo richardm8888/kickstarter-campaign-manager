@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Launch\ContentWriter;
+use App\Launch\HandoffPrompt;
 use App\Launch\Playbook;
+use App\Launch\TaskImport;
 use App\Models\LaunchTask;
 use App\Models\Project;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class LaunchTaskController extends Controller
@@ -42,6 +45,8 @@ class LaunchTaskController extends Controller
             'content_brief' => $project->content_brief,
             'launch_date' => $project->launch_date?->toDateString(),
             'launch_date_confirmed' => (bool) $project->launch_date_confirmed,
+            'website_repo' => $project->website_repo,
+            'assets_repo' => $project->assets_repo,
             'ai_available' => $writer->available(),
         ]);
     }
@@ -80,6 +85,57 @@ class LaunchTaskController extends Controller
         }
 
         return response()->json(['added' => $added]);
+    }
+
+    /**
+     * Adds tasks from a pasted list and ticks off "done:" lines.
+     *
+     * With preview set, nothing is saved: the page shows what would
+     * happen first. A list with any error saves nothing either, so a typo
+     * on line 12 never leaves the first 11 imported and the rest missing.
+     */
+    public function import(Request $request, Project $project): JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'text' => ['required', 'string', 'max:50000'],
+            'preview' => ['sometimes', 'boolean'],
+        ]);
+
+        $import = TaskImport::parse($project, $validated['text']);
+
+        $summary = [
+            'tasks' => array_values($import->tasks),
+            'done' => collect($import->done)->map(fn (array $row) => ['line' => $row['line'], 'id' => $row['task']->id, 'title' => $row['task']->title])->values(),
+            'skipped' => $import->skipped,
+            'errors' => $import->errors,
+        ];
+
+        if (($validated['preview'] ?? false) || $import->errors !== []) {
+            // Errors are an answer about the list, not a failed request: the
+            // page shows them line by line, so they come back as a normal reply.
+            return response()->json([...$summary, 'saved' => false]);
+        }
+
+        DB::transaction(function () use ($project, $import) {
+            $order = (int) $project->launchTasks()->max('sort_order');
+
+            foreach ($import->tasks as $task) {
+                $project->launchTasks()->create([
+                    ...collect($task)->except('line')->all(),
+                    'sort_order' => ++$order,
+                ]);
+            }
+
+            foreach ($import->done as $row) {
+                if ($row['task']->status !== LaunchTask::DONE) {
+                    $row['task']->update(['status' => LaunchTask::DONE, 'completed_at' => now()]);
+                }
+            }
+        });
+
+        return response()->json([...$summary, 'saved' => true]);
     }
 
     public function store(Request $request, Project $project): JsonResponse
@@ -132,6 +188,9 @@ class LaunchTaskController extends Controller
             'team.*' => ['nullable', 'string', 'max:60', 'distinct'],
             'content_brief' => ['sometimes', 'nullable', 'string', 'max:10000'],
             'launch_date_confirmed' => ['sometimes', 'boolean'],
+            // owner/name, or a full GitHub URL: whatever the agent will be told to open.
+            'website_repo' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'assets_repo' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
         if (array_key_exists('team', $validated)) {
@@ -141,6 +200,17 @@ class LaunchTaskController extends Controller
         $project->update($validated);
 
         return response()->json(['project' => $project]);
+    }
+
+    /** A prompt to hand this task to a coding agent such as Claude Code. */
+    public function handoff(Project $project, LaunchTask $task): JsonResponse
+    {
+        $this->authorize('view', $project);
+        abort_unless($task->project_id === $project->id, 404);
+
+        $task->setRelation('project', $project)->load('latestDraft');
+
+        return response()->json(['prompt' => HandoffPrompt::for($task)]);
     }
 
     public function drafts(Project $project, LaunchTask $task): JsonResponse

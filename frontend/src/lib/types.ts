@@ -146,7 +146,7 @@ export interface LandingPage {
 export interface CredentialField {
   label: string
   help: string
-  type: 'password' | 'textarea'
+  type: 'password' | 'textarea' | 'text'
   placeholder?: string
 }
 
@@ -534,6 +534,8 @@ export interface LaunchTaskPlan {
   content_brief: string | null
   launch_date: string | null
   launch_date_confirmed: boolean
+  website_repo: string | null
+  assets_repo: string | null
   ai_available: boolean
 }
 
