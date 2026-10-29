@@ -8,6 +8,7 @@ import {
   HeartPulse,
   LayoutDashboard,
   ListChecks,
+  ListTodo,
   LogOut,
   Megaphone,
   PanelsTopLeft,
@@ -25,6 +26,7 @@ import { ThemeToggle } from './ThemeToggle'
 const NAV = [
   { to: '/projects/$projectId', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/projects/$projectId/today', label: 'Today', icon: ListChecks },
+  { to: '/projects/$projectId/plan', label: 'Launch plan', icon: ListTodo },
   { to: '/projects/$projectId/landing-page', label: 'Landing page', icon: PanelsTopLeft },
   { to: '/projects/$projectId/integrations', label: 'Integrations', icon: Cable },
   { to: '/projects/$projectId/ads', label: 'Ads', icon: Megaphone },

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DailyTaskController;
+use App\Http\Controllers\Api\LaunchTaskController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ForecastController;
 use App\Http\Controllers\Api\HealthController;
@@ -71,6 +72,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/daily', [DailyTaskController::class, 'index']);
         Route::get('/daily/history', [DailyTaskController::class, 'history']);
         Route::patch('/daily/{task}', [DailyTaskController::class, 'update']);
+
+        Route::get('/launch-tasks', [LaunchTaskController::class, 'index']);
+        Route::post('/launch-tasks', [LaunchTaskController::class, 'store']);
+        Route::post('/launch-tasks/playbook', [LaunchTaskController::class, 'loadPlaybook']);
+        Route::put('/launch-tasks/settings', [LaunchTaskController::class, 'settings']);
+        Route::patch('/launch-tasks/{task}', [LaunchTaskController::class, 'update']);
+        Route::delete('/launch-tasks/{task}', [LaunchTaskController::class, 'destroy']);
+        Route::get('/launch-tasks/{task}/drafts', [LaunchTaskController::class, 'drafts']);
+        // Each call is a paid AI request.
+        Route::post('/launch-tasks/{task}/drafts', [LaunchTaskController::class, 'generate'])->middleware('throttle:20,1');
         Route::get('/analytics', [AnalyticsController::class, 'show']);
         Route::get('/health', [HealthController::class, 'show']);
 

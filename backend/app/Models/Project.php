@@ -25,6 +25,9 @@ class Project extends Model
         'guaranteed_backers',
         'launch_date',
         'forecast_assumptions',
+        'team',
+        'content_brief',
+        'launch_date_confirmed',
     ];
 
     protected function casts(): array
@@ -35,6 +38,8 @@ class Project extends Model
             'guaranteed_backers' => 'integer',
             'launch_date' => 'date',
             'forecast_assumptions' => 'array',
+            'team' => 'array',
+            'launch_date_confirmed' => 'boolean',
         ];
     }
 
@@ -71,6 +76,11 @@ class Project extends Model
     public function dailyTasks(): HasMany
     {
         return $this->hasMany(DailyTask::class);
+    }
+
+    public function launchTasks(): HasMany
+    {
+        return $this->hasMany(LaunchTask::class);
     }
 
     public function landingPageAnalyses(): HasMany
