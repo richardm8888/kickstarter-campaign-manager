@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trash2,
   Undo2,
+  Upload,
 } from 'lucide-react'
 import {
   createTask,
@@ -24,6 +25,7 @@ import {
   updateTask,
   writeDraft,
 } from './api'
+import { ImportTasks } from './ImportTasks'
 import { PageHeader } from '@/components/layout/ProjectLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -89,6 +91,7 @@ export function LaunchPlanPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [settingsDismissed, setSettingsDismissed] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const playbook = useMutation({
     mutationFn: () => loadPlaybook(projectId),
@@ -151,6 +154,12 @@ export function LaunchPlanPage() {
               Add task
             </Button>
           )}
+          {data.tasks.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setImporting((open) => !open)}>
+              <Upload className="h-4 w-4" aria-hidden />
+              Import
+            </Button>
+          )}
         </div>
       </PageHeader>
 
@@ -167,6 +176,8 @@ export function LaunchPlanPage() {
         )}
 
         {adding && <AddTask projectId={projectId} plan={data} onDone={() => setAdding(false)} />}
+
+        {importing && <ImportTasks projectId={projectId} plan={data} onDone={() => setImporting(false)} />}
 
         {data.tasks.length === 0 ? (
           <Card>

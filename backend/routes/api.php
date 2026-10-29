@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/launch-tasks', [LaunchTaskController::class, 'index']);
         Route::post('/launch-tasks', [LaunchTaskController::class, 'store']);
         Route::post('/launch-tasks/playbook', [LaunchTaskController::class, 'loadPlaybook']);
+        Route::post('/launch-tasks/import', [LaunchTaskController::class, 'import']);
         Route::put('/launch-tasks/settings', [LaunchTaskController::class, 'settings']);
         Route::patch('/launch-tasks/{task}', [LaunchTaskController::class, 'update']);
         Route::delete('/launch-tasks/{task}', [LaunchTaskController::class, 'destroy']);

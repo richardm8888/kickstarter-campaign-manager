@@ -37,3 +37,14 @@ export const writeDraft = (projectId: string, taskId: number, notes: string) =>
   api.post<{ draft: LaunchTaskDraft }>(`/projects/${projectId}/launch-tasks/${taskId}/drafts`, {
     notes: notes || null,
   })
+
+export interface ImportResult {
+  tasks: { line: number; title: string; category: string; phase: string; content_type: string | null; offset_days: number | null; due_on: string | null; assignee: string | null }[]
+  done: { line: number; id: number; title: string }[]
+  skipped: { line: number; title: string }[]
+  errors: { line: number; message: string }[]
+  saved: boolean
+}
+
+export const importTasks = (projectId: string, text: string, preview: boolean) =>
+  api.post<ImportResult>(`/projects/${projectId}/launch-tasks/import`, { text, preview })
