@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Launch\ContentWriter;
+use App\Launch\HandoffPrompt;
 use App\Launch\Playbook;
 use App\Launch\TaskImport;
 use App\Models\LaunchTask;
@@ -44,6 +45,8 @@ class LaunchTaskController extends Controller
             'content_brief' => $project->content_brief,
             'launch_date' => $project->launch_date?->toDateString(),
             'launch_date_confirmed' => (bool) $project->launch_date_confirmed,
+            'website_repo' => $project->website_repo,
+            'assets_repo' => $project->assets_repo,
             'ai_available' => $writer->available(),
         ]);
     }
@@ -185,6 +188,9 @@ class LaunchTaskController extends Controller
             'team.*' => ['nullable', 'string', 'max:60', 'distinct'],
             'content_brief' => ['sometimes', 'nullable', 'string', 'max:10000'],
             'launch_date_confirmed' => ['sometimes', 'boolean'],
+            // owner/name, or a full GitHub URL: whatever the agent will be told to open.
+            'website_repo' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'assets_repo' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
         if (array_key_exists('team', $validated)) {
@@ -194,6 +200,17 @@ class LaunchTaskController extends Controller
         $project->update($validated);
 
         return response()->json(['project' => $project]);
+    }
+
+    /** A prompt to hand this task to a coding agent such as Claude Code. */
+    public function handoff(Project $project, LaunchTask $task): JsonResponse
+    {
+        $this->authorize('view', $project);
+        abort_unless($task->project_id === $project->id, 404);
+
+        $task->setRelation('project', $project)->load('latestDraft');
+
+        return response()->json(['prompt' => HandoffPrompt::for($task)]);
     }
 
     public function drafts(Project $project, LaunchTask $task): JsonResponse

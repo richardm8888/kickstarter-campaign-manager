@@ -97,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/launch-tasks/{task}', [LaunchTaskController::class, 'update']);
         Route::delete('/launch-tasks/{task}', [LaunchTaskController::class, 'destroy']);
         Route::get('/launch-tasks/{task}/drafts', [LaunchTaskController::class, 'drafts']);
+        Route::get('/launch-tasks/{task}/handoff', [LaunchTaskController::class, 'handoff']);
         // Each call is a paid AI request.
         Route::post('/launch-tasks/{task}/drafts', [LaunchTaskController::class, 'generate'])->middleware('throttle:20,1');
         Route::get('/analytics', [AnalyticsController::class, 'show']);

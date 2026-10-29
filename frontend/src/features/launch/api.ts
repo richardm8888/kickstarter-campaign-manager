@@ -30,7 +30,13 @@ export const deleteTask = (projectId: string, taskId: number) =>
 
 export const saveSettings = (
   projectId: string,
-  body: { team?: string[]; content_brief?: string | null; launch_date_confirmed?: boolean },
+  body: {
+    team?: string[]
+    content_brief?: string | null
+    launch_date_confirmed?: boolean
+    website_repo?: string | null
+    assets_repo?: string | null
+  },
 ) => api.put(`/projects/${projectId}/launch-tasks/settings`, body)
 
 export const writeDraft = (projectId: string, taskId: number, notes: string) =>
@@ -48,3 +54,6 @@ export interface ImportResult {
 
 export const importTasks = (projectId: string, text: string, preview: boolean) =>
   api.post<ImportResult>(`/projects/${projectId}/launch-tasks/import`, { text, preview })
+
+export const getHandoffPrompt = (projectId: string, taskId: number) =>
+  api.get<{ prompt: string }>(`/projects/${projectId}/launch-tasks/${taskId}/handoff`)

@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Bot,
   Copy,
   ListPlus,
   Plus,
@@ -17,6 +18,7 @@ import {
 import {
   createTask,
   deleteTask,
+  getHandoffPrompt,
   getDrafts,
   getLaunchPlan,
   launchPlanKey,
@@ -367,6 +369,7 @@ function TaskRow({ projectId, plan, task }: { projectId: string; plan: LaunchTas
               {task.content_type && <Writer projectId={projectId} plan={plan} task={task} />}
 
               <div className="flex flex-wrap gap-2">
+                <HandoffButton projectId={projectId} taskId={task.id} />
                 {task.status === 'todo' ? (
                   <Button size="sm" variant="ghost" onClick={() => update.mutate({ status: 'skipped' })}>
                     Skip
@@ -500,6 +503,8 @@ function PlanSettings({ projectId, plan, onDone }: { projectId: string; plan: La
   const [team, setTeam] = useState(plan.team.join(', '))
   const [brief, setBrief] = useState(plan.content_brief ?? '')
   const [confirmed, setConfirmed] = useState(plan.launch_date_confirmed)
+  const [websiteRepo, setWebsiteRepo] = useState(plan.website_repo ?? '')
+  const [assetsRepo, setAssetsRepo] = useState(plan.assets_repo ?? '')
 
   const save = useMutation({
     mutationFn: () =>
@@ -507,6 +512,8 @@ function PlanSettings({ projectId, plan, onDone }: { projectId: string; plan: La
         team: team.split(',').map((name) => name.trim()).filter(Boolean),
         content_brief: brief || null,
         launch_date_confirmed: confirmed,
+        website_repo: websiteRepo.trim() || null,
+        assets_repo: assetsRepo.trim() || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: launchPlanKey(projectId) })
@@ -534,6 +541,29 @@ function PlanSettings({ projectId, plan, onDone }: { projectId: string; plan: La
             placeholder="What the game is, the key facts (players, age, play time, what's in the box), your voice, quotes you're allowed to use, and anything to avoid."
             onChange={(event) => setBrief(event.target.value)}
           />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="website-repo">Website repository</Label>
+            <Input
+              id="website-repo"
+              value={websiteRepo}
+              placeholder="owner/website-repo"
+              onChange={(event) => setWebsiteRepo(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="assets-repo">Assets repository (optional)</Label>
+            <Input
+              id="assets-repo"
+              value={assetsRepo}
+              placeholder="owner/assets-repo"
+              onChange={(event) => setAssetsRepo(event.target.value)}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Used by "Copy prompt for Claude" so website tasks say which code to change.
+          </p>
         </div>
         <label className="flex items-start gap-3 text-sm">
           <Switch checked={confirmed} onCheckedChange={setConfirmed} aria-label="Launch date confirmed" />
@@ -674,5 +704,69 @@ function AddTask({ projectId, plan, onDone }: { projectId: string; plan: LaunchT
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Copies a ready-made prompt that hands this task to Claude Code (or
+ * another coding agent): the project, the task, any draft, and how the
+ * work should come back.
+ *
+ * Safari only allows a copy during the tap itself, and fetching the
+ * prompt takes longer than that, so the copy is started straight away
+ * with the text still on its way (ClipboardItem accepts a promise). If
+ * the browser refuses anyway, the prompt is shown to copy by hand.
+ */
+function HandoffButton({ projectId, taskId }: { projectId: string; taskId: number }) {
+  const [state, setState] = useState<'idle' | 'copying' | 'copied' | 'manual'>('idle')
+  const [prompt, setPrompt] = useState<string | null>(null)
+
+  const copy = async () => {
+    setState('copying')
+    const text = getHandoffPrompt(projectId, taskId).then(({ prompt: value }) => {
+      setPrompt(value)
+      return value
+    })
+
+    try {
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': text.then((value) => new Blob([value], { type: 'text/plain' })) }),
+        ])
+      } else {
+        await navigator.clipboard.writeText(await text)
+      }
+      setState('copied')
+      setTimeout(() => setState('idle'), 2000)
+    } catch {
+      // Make sure the text arrived even though the copy did not.
+      await text.catch(() => null)
+      setState('manual')
+    }
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="outline" disabled={state === 'copying'} onClick={copy}>
+        <Bot className="h-4 w-4" aria-hidden />
+        {state === 'copied' ? 'Prompt copied' : 'Copy prompt for Claude'}
+      </Button>
+      {state === 'manual' && (
+        <div className="flex w-full flex-col gap-1">
+          <p className="text-xs text-muted-foreground">
+            {prompt ? "Your browser blocked copying. Select the text below and copy it:" : "Couldn't load the prompt. Try again."}
+          </p>
+          {prompt && (
+            <Textarea
+              readOnly
+              rows={8}
+              value={prompt}
+              className="font-mono text-xs"
+              onFocus={(event) => event.target.select()}
+            />
+          )}
+        </div>
+      )}
+    </>
   )
 }

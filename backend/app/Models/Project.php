@@ -29,6 +29,8 @@ class Project extends Model
         'team',
         'content_brief',
         'launch_date_confirmed',
+        'website_repo',
+        'assets_repo',
     ];
 
     protected function casts(): array

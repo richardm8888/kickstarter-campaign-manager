@@ -534,6 +534,8 @@ export interface LaunchTaskPlan {
   content_brief: string | null
   launch_date: string | null
   launch_date_confirmed: boolean
+  website_repo: string | null
+  assets_repo: string | null
   ai_available: boolean
 }
 
