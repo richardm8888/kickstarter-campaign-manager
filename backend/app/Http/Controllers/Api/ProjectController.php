@@ -16,9 +16,17 @@ class ProjectController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return response()->json([
-            'projects' => $request->user()->projects()->latest()->get(),
-        ]);
+        $user = $request->user();
+
+        // Shared projects sit alongside owned ones: someone invited to a
+        // launch should land on it, not on an empty list.
+        $projects = $user->projects()->get()
+            ->concat($user->sharedProjects()->get())
+            ->sortByDesc('created_at')
+            ->values()
+            ->each(fn (Project $project) => $project->setAttribute('is_owner', $project->isOwnedBy($user)));
+
+        return response()->json(['projects' => $projects]);
     }
 
     public function store(Request $request, CreateProject $action): JsonResponse
@@ -40,9 +48,11 @@ class ProjectController extends Controller
         return response()->json(['project' => $project->load('landingPage.sections')], 201);
     }
 
-    public function show(Project $project): JsonResponse
+    public function show(Request $request, Project $project): JsonResponse
     {
         $this->authorize('view', $project);
+
+        $project->setAttribute('is_owner', $project->isOwnedBy($request->user()));
 
         return response()->json([
             'project' => $project->load('landingPage.sections', 'integrations'),

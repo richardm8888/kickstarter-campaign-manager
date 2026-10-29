@@ -19,6 +19,7 @@ import { ProjectLayout } from '@/components/layout/ProjectLayout'
  */
 const LoginPage = lazyRouteComponent(() => import('@/features/auth/LoginPage'), 'LoginPage')
 const RegisterPage = lazyRouteComponent(() => import('@/features/auth/RegisterPage'), 'RegisterPage')
+const InvitePage = lazyRouteComponent(() => import('@/features/members/InvitePage'), 'InvitePage')
 const ForgotPasswordPage = lazyRouteComponent(() => import('@/features/auth/ForgotPasswordPage'), 'ForgotPasswordPage')
 const ProjectsPage = lazyRouteComponent(() => import('@/features/projects/ProjectsPage'), 'ProjectsPage')
 const SettingsPage = lazyRouteComponent(() => import('@/features/projects/SettingsPage'), 'SettingsPage')
@@ -70,6 +71,13 @@ const forgotPasswordRoute = createRoute({
   path: '/forgot-password',
   beforeLoad: requireGuest,
   component: ForgotPasswordPage,
+})
+
+// Open to everyone: the page itself handles being signed in or not.
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invite/$token',
+  component: InvitePage,
 })
 
 const projectsRoute = createRoute({
@@ -157,6 +165,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   forgotPasswordRoute,
+  inviteRoute,
   projectsRoute,
   projectLayoutRoute.addChildren([
     dashboardRoute,

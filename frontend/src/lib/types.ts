@@ -17,6 +17,8 @@ export interface Project {
   guaranteed_backers: number
   launch_date: string | null
   created_at: string
+  /** False on a project someone else owns and has shared with you. */
+  is_owner?: boolean
 }
 
 export type AdVerdict = 'scale' | 'keep' | 'fix' | 'drop' | 'learning' | 'off'
@@ -533,4 +535,24 @@ export interface LaunchTaskPlan {
   launch_date: string | null
   launch_date_confirmed: boolean
   ai_available: boolean
+}
+
+export interface ProjectPerson {
+  id: number
+  name: string
+  email: string
+}
+
+export interface ProjectInvitation {
+  id: number
+  email: string
+  expires_at: string
+  token: string
+}
+
+export interface ProjectMembers {
+  is_owner: boolean
+  owner: ProjectPerson
+  members: ProjectPerson[]
+  invitations: ProjectInvitation[]
 }
