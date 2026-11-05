@@ -13,6 +13,7 @@ import {
   Megaphone,
   PanelsTopLeft,
   Rocket,
+  Search,
   Settings,
   TrendingUp,
 } from 'lucide-react'
@@ -33,6 +34,7 @@ const NAV = [
   { to: '/projects/$projectId/forecast', label: 'Forecast', icon: TrendingUp },
   { to: '/projects/$projectId/health', label: 'Campaign health', icon: HeartPulse },
   { to: '/projects/$projectId/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/projects/$projectId/seo', label: 'Search (SEO)', icon: Search },
   { to: '/projects/$projectId/insights', label: 'AI insights', icon: Brain },
   { to: '/projects/$projectId/settings', label: 'Settings', icon: Settings },
 ] as const

@@ -25,7 +25,7 @@ class IntegrationTest extends TestCase
         $response->assertOk();
         $providers = collect($response->json('integrations'))->pluck('provider');
 
-        $this->assertEqualsCanonicalizing(['meta', 'ga4', 'mailerlite', 'stripe'], $providers->all());
+        $this->assertEqualsCanonicalizing(['meta', 'ga4', 'mailerlite', 'stripe', 'search_console'], $providers->all());
         $this->assertSame('disconnected', $response->json('integrations.0.status'));
     }
 

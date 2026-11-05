@@ -197,7 +197,9 @@ function IntegrationCard({ projectId, integration }: {
                   ) : (
                     <Input
                       id={inputId}
-                      type="password"
+                      // Secrets stay masked; a plain identifier (like a Search
+                      // Console property) is easier to check when visible.
+                      type={spec?.type === 'text' ? 'text' : 'password'}
                       autoComplete="off"
                       aria-describedby={spec?.help ? helpId : undefined}
                       placeholder={spec?.placeholder}
